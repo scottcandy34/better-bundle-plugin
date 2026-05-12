@@ -1,0 +1,14 @@
+name: BetterBundles
+version: 1.0.0
+main: com.grok.betterbundles.BetterBundlesPlugin
+api-version: 1.21
+description: Upgradable bundles with increased capacity, custom GUI with pagination for large storage, inspired by Better Bundles Reimagined.
+authors: [Grok]
+website: https://github.com/yourname/betterbundles
+depend: []
+commands:
+  betterbundles:
+    description: Give a custom upgradable bundle (for testing/admin)
+    usage: /betterbundles <bundle|iron|gold|diamond|netherite>
+    permission: betterbundles.give
+    permission-message: You don't have permission to use this command.
