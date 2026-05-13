@@ -9,6 +9,6 @@ depend: []
 commands:
   betterbundles:
     description: Give a custom upgradable bundle (for testing/admin)
-    usage: /betterbundles <bundle|iron|gold|diamond|netherite>
+    usage: /betterbundles <bundle|copper|iron|gold|diamond|netherite>
     permission: betterbundles.give
     permission-message: You don't have permission to use this command.
