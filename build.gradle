@@ -1,0 +1,75 @@
+buildscript {
+    repositories {
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+    }
+}
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'com.matthewprenger.cursegradle' version '1.2.0'
+    id "de.undercouch.download" version "4.1.2"
+}
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+apply plugin: 'org.spongepowered.mixin'
+
+version = '1.0'
+group = 'de.cheaterpaul.betterbundles'
+archivesBaseName = 'BetterBundles'
+ext.mod_version="Test"
+ext.type="test"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
+
+apply from: 'gradle/versioning.gradle'
+apply from: 'gradle/artifacts.gradle'
+apply from: 'gradle/forge.gradle'
+apply from: 'gradle/maven.gradle'
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+// Example for how to get properties into the manifest for reading at runtime.
+jar {
+    finalizedBy('reobfJar')
+
+    includeEmptyDirs = false
+
+    from sourceSets.main.output.classesDirs
+    from sourceSets.main.output.resourcesDir
+
+    from{
+        fileTree('build/translations').matching{
+            exclude "**/en_us.json" //Don't override local source file
+        }
+    }
+
+    manifest {
+        attributes([
+                "Specification-Title"     : "betterbundles",
+                "Specification-Vendor"    : "cheaterpaul",
+                "Specification-Version"   : "1", // We are version 1 of ourselves
+                "Implementation-Title"    : "Better Bundles",
+                "Implementation-Version"  : project.jar.archiveVersion,
+                "Implementation-Vendor"   : "cheaterpaul",
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                "MixinConfigs": "betterbundles.mixins.json"
+        ])
+    }
+}
+
+mixin {
+    add sourceSets.main, "betterbundles.refmap.json"
+
+    config "betterbundles.mixins.json"
+}
+
+sourceSets.each {
+    def dir = layout.buildDirectory.dir("sourcesSets/$it.name")
+    it.output.resourcesDir = dir
+    it.java.destinationDirectory = dir
+}
