@@ -1,0 +1,9 @@
+{
+  "item.better_bundles.iron_bundle": "Iron Bundle",
+  "item.better_bundles.gold_bundle": "Gold Bundle",
+  "item.better_bundles.diamond_bundle": "Diamond Bundle",
+  "item.better_bundles.netherite_bundle": "Netherite Bundle",
+  "item.better_bundles.ender_bundle": "Ender Bundle",
+  "item.better_bundles.bundle.description": "Can hold up to %s items",
+  "item.minecraft.bundle.empty.description": "Can hold up to 64 items"
+}

@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.bad_coders.better_bundles.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BundleItemMixin",
+    "ItemEntityMixin",
+    "BundleContentsComponentMixin",
+    "ItemStackPacketCodecMixin",
+    "BundleContentsComponentBuilderMixin",
+    "ItemStackExtraValidationMixin",
+    "PlayerEntityMixin",
+    "ItemStackMixin",
+    "BundleItemTooltipMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

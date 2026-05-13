@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.bad_coders.better_bundles.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "HandledScreenScrollMixin",
+    "BundleTooltipComponentMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
