@@ -1,51 +1,110 @@
-# BUNDLES! <img align="left" width=4% height=4% src="logo.png"/> [![](https://img.shields.io/badge/Minecraft-1.16.5-success)](https://minecraft.net/) [![](https://img.shields.io/badge/Forge-1.16.5--36.2.35%2B-important?logo=curseforge)](https://forums.minecraftforge.net/) [![](http://cf.way2muchnoise.eu/full_412219_downloads.svg)](https://www.curseforge.com/minecraft/mc-mods/bundles-mod)
+# BetterBundle Plugin for PaperMC 26.1.2
 
-During Minecraft Live 2020 Mojang announced that in 1.17 a new item will be introduced to the game: the Bundle! 
-This is like an early game version of the Shulker Box, allowing you to save some inventory space.
+Recreated from 
+the `bundles_mod` branch of the original Fabric mod as a 
+modern **PaperMC plugin** using the latest Gradle Kotlin 
+DSL and Paper 26.1.2 best practices (paperweight-userdev 
++ Mojang mappings).
 
-# ⚙ How to get a Bundle?
-Getting a Bundle is really easy, as it doesn't require too many materials. All you need is just 5 pieces of Rabbit Hide and 2 Strings to create a Bundle!
+## Features (matching & enhancing th
+e original mod)
+- **Custom Bundle item** using vanilla `B
+UNDLE` material for familiarity.
+- **Crafting recipe**: S
+haped recipe using **5 Rabbit Hide** and **2 String**.
+- 
+**Weight-based capacity**: Max weight **64**. Most items 
+= 1 weight. Tools, armor, weapons, Ender Pearls, etc. = 4
+ weight.
+- **Blocked items**: Shulker boxes, chests, barr
+els, other bundles cannot be stored.
+- **Intuitive usage*
+* (no GUI needed):
+  - **Right-click** while holding Bund
+le in main hand + item in **off-hand** â†’ Adds item(s) t
+o bundle (respects weight).
+  - **Right-click** with empt
+y off-hand â†’ Removes the **last item** (LIFO) and gives
+ it to you.
+  - **Sneak + Right-click** â†’ Empties the e
+ntire bundle (drops all items).
+- Dynamic lore showing cu
+rrent weight / capacity.
+- Built with modern **Adventure 
+API** for text.
+- Fully compatible with **Paper 26.1.2** 
+(Mojang mappings, no remapping needed).
 
-<img src="crafting.png" />
+## Project Struc
+ture (Modern 26.1.2 Setup)
+```
+better-bundle-plugin/
+â”œâ
+”€â”€ build.gradle.kts          # Latest paperweight-user
+dev 2.0.0-beta.21 + Kotlin DSL
+â”œâ”€â”€ settings.gradle.
+kts
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ main/
+â”‚   â”‚   â”œâ
+”€â”€ java/com/scottcandy34/betterbundle/BetterBundlePlug
+in.java
+â”‚   â”‚   â””â”€â”€ resources/
+â”‚   â”‚       
+â””â”€â”€ plugin.yml
+â””â”€â”€ README.md
+```
 
-# 🤔 How does it work?
-Select the Bundle from your inventory, then right-click on a stack to put it inside the Bundle, or right click with the
-stack on the Bundle to put inside if there's space available.
+## How to B
+uild & Run
+1. Open the project in **IntelliJ IDEA** (reco
+mmended) or any IDE with Gradle support.
+2. Make sure you
+ have **Java 21+** JDK.
+3. Sync Gradle.
+4. Run `./gradlew
+ build` (or use the Gradle wrapper / IDE task).
+5. The pl
+ugin JAR will be in `build/libs/better-bundle-plugin-1.0.
+0-SNAPSHOT.jar`
+6. Drop it into your **Paper 26.1.2** ser
+ver's `plugins/` folder.
+7. Restart the server.
 
-If you want to take out the Items from the Bundle, right click it in inventory to take out one Item from the Bundle
-(from last to the first one), or right click it outside the inventory to drop all the Bundle Items on the ground.
+**Note**
+: This project uses the modern `paperweight.userdev` with
+ `MOJANG_PRODUCTION` mappings for best compatibility on P
+aper 26.1.2+.
 
-The functionality has been ported to mimic the latest 1.17 snapshots, where Bundle were originally developed, so you
-can check the [Minecraft Wiki](https://minecraft.fandom.com/wiki/Bundle) to see how a Bundle works.
+## Usage In-Game
+- Craft the Bundle (or us
+e `/give @s bundle` and it will work as our custom one if
+ it has our data).
+- Hold the Bundle in your **main hand*
+*.
+- Put items in your **off-hand** and right-click to st
+ore them.
+- Right-click again to retrieve items one by on
+e (LIFO).
+- Sneak + right-click to dump everything.
 
-Also featured in Boodlyneck's Mods of the Week serie!
+## C
+onfiguration / Future Improvements
+- Currently hardcoded 
+weights and blocked items (easy to move to config.yml).
+-
+ Can be extended with commands, permissions, or a GUI bac
+kpack mode.
+- Tags support (`bundle_ignored_*`) can be ad
+ded via config or Minecraft tags.
 
-[![Top 10 Minecraft Mods Of The Week | Bundles!, BetterEnd, Subterranean Wilderness, Visp, and More!](https://yt-embed.herokuapp.com/embed?v=97_AjrikgpE)](https://www.youtube.com/watch?v=97_AjrikgpE "Top 10 Minecraft Mods Of The Week | Bundles!, BetterEnd, Subterranean Wilderness, Visp, and More!")
+This plugin brings the
+ spirit of the original `bundles_mod` (early bundle for o
+lder versions) into the modern Paper era with clean, main
+tainable code.
 
-# 👀 Can I put anything inside the Bundle?
-No, there are certain blocks/items that you can't put inside a Bundle. 
-Which blocks or items you ask? Well, you can decide them! By default, the mod comes with two tags,
-**bundle\_ignored\_blocks** and **bundle\_ignored\_items**. These two tags contains all the blocks and the items that can't
-be put inside a Bundle. By default, you can't put another Bundle, a Chest, a Trapped Chest, an Ender Chest and 
-any Shulker Box inside a Bundle, but if you wish you can always modify those tags to allow those blocks to be
-put inside the Bundle and create some black holes! Or even do the opposite and add other blocks or items
-that you don't want to be put inside the Bundle. Just make sure you put the right thing in the right tag (so blocks
-inside the **bundle\_ignored\_blocks** tag and items inside the **bundle\_ignored\_items** tag). The only limit is
-your creativity!
+Created following PaperMC 26.1.2 best pra
+ctices and your requested style. 
 
-# 🛍 How many items can fit inside a Bundle?
-You can put up to 64 items (or a full stack) inside a Bundle, but remember that certain Items, like Tools or Ender Pearls,
-will take more space than normal blocks inside a Bundle.
-
-# 🌐 Where can I download this mod?
-You can download this mod on [CurseForge](https://www.curseforge.com/minecraft/mc-mods/bundles-mod). **I will post new releases only there**. Any other websites that offers you this mod shouldn't be trusted!
-
-# 😁 Conclusion
-Minecraft 1.17 has been one of the greatest update of all time, full of many new content we asked for so long!
-This mod aims to introduce the Bundle mechanic in 1.16.5, however note that all of this is based purely on 
-what can be done in such version, as something is really hard or practically impossible to do (like the Tooltip for example), so there might be some aspects that may change or differ entirely 
-from what is inside this mod. 
-Also consider that the Bundle itself is still in development in Vanilla Minecraft, so things might actually change
-in the future. If that is the case I will update the mod to match such changes.
-
-That being said, I hope you enjoy it! Let me know if there are any issues on the [issue tracker](https://github.com/JimiIT92/BundlesMod/issues), have a nice day! 😁
+Enjoy your bundles! ðŸ
+Ž’

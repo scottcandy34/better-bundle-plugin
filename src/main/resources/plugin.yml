@@ -1,0 +1,17 @@
+name: BetterBundle
+version: ${version}
+main: com.scottcandy34.betterbundle.BetterBundlePlugin
+description: Recreates and enhances the Bundle item mechanics from the bundles_mod as a modern Paper plugin for 26.1.2. Custom bundle with configurable capacity, ignored items, and intuitive usage.
+author: scottcandy34
+website: https://github.com/scottcandy34/better-bundle-plugin
+api-version: '26.1'
+load: POSTWORLD
+prefix: BetterBundle
+
+permissions:
+  betterbundle.use:
+    description: "Allows using the Better Bundle item"
+    default: true
+  betterbundle.admin:
+    description: "Admin commands for BetterBundle"
+    default: op
