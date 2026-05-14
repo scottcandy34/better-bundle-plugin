@@ -1,11 +1,13 @@
 package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -70,12 +72,9 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         getLogger().info("Registered custom Bundle crafting recipe.");
     }
 
-    /**
-     * Creates a new Bundle item stack with proper meta and PDC marker.
-     */
     public ItemStack createBundleItem(int amount) {
-        // Use LEATHER instead of BUNDLE to avoid vanilla bundle behavior
-        ItemStack item = new ItemStack(Material.LEATHER, amount);
+        // Changed to SHULKER_BOX as requested
+        ItemStack item = new ItemStack(Material.SHULKER_BOX, amount);
         ItemMeta meta = item.getItemMeta();
 
         if (meta != null) {
@@ -91,7 +90,6 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
-            // Mark as our custom bundle
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
             pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0]);
@@ -102,7 +100,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isOurBundle(ItemStack item) {
-        if (item == null || item.getType() != Material.LEATHER || !item.hasItemMeta()) {
+        if (item == null || item.getType() != Material.SHULKER_BOX || !item.hasItemMeta()) {
             return false;
         }
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
@@ -197,6 +195,14 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         meta.lore(lore);
 
         bundle.setItemMeta(meta);
+    }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (isOurBundle(event.getItemInHand())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(Component.text("You cannot place this Bundle as a block!", NamedTextColor.RED));
+        }
     }
 
     @EventHandler
