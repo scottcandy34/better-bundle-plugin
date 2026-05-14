@@ -240,6 +240,12 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
         event.setCancelled(true);
 
+        // allow bundle stacking
+        if (isOurBundle(current) && isOurBundle(cursor)) {
+            event.setCancelled(false);
+            return;
+        }
+
         // LEFT CLICK: Add item
         else if (event.getClick().isLeftClick() && isOurBundle(current) && cursor != null && cursor.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(current);
