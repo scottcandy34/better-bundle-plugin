@@ -200,7 +200,6 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             meta.setMaxStackSize(1);
             if (meta instanceof Damageable damageable) {
                 damageable.setMaxDamage(MAX_WEIGHT);
-                getLogger().info("weight: " + weight);
                 damageable.setDamage(MAX_WEIGHT - weight); // exactly the weight (increases when adding items)
             }
         }
@@ -229,7 +228,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         ItemStack cursor = event.getCursor();
         ItemStack current = event.getCurrentItem();
 
-        if (!isOurBundle(cursor)) return;
+        if (!isOurBundle(cursor) && !isOurBundle(current)) return;
 
         // Skip Creative mode
         if (event.getView().getType() == InventoryType.CREATIVE) {
@@ -238,11 +237,54 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
         event.setCancelled(true);
 
-        Inventory bundleInv = getBundleInventory(cursor);
-        if (bundleInv == null) return;
-
         // LEFT CLICK: Add item
-        if (event.getClick().isLeftClick() && current != null && current.getType() != Material.AIR) {
+        else if (event.getClick().isLeftClick() && isOurBundle(current) && cursor != null && cursor.getType() != Material.AIR) {
+            Inventory bundleInv = getBundleInventory(current);
+            if (bundleInv == null) return;
+            
+            int itemWeight = getItemWeight(cursor);
+            int currentWeight = calculateWeight(bundleInv);
+
+            if (isBlockedItem(cursor.getType())) {
+                player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+                return;
+            }
+
+            if (currentWeight + itemWeight > MAX_WEIGHT) {
+                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
+                return;
+            }
+
+            int canAdd = Math.min(cursor.getAmount(), (MAX_WEIGHT - currentWeight) / Math.max(1, itemWeight));
+            if (canAdd > 0) {
+                ItemStack added = cursor.clone();
+                added.setAmount(canAdd);
+
+                // Add to first available slot in the real Shulker inventory
+                bundleInv.addItem(added);
+
+                cursor.setAmount(cursor.getAmount() - canAdd);
+
+                saveBundleInventory(current, bundleInv);
+                updateBundle(current);
+            }
+
+            // Fix creative inventory for being out of async
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                InventoryView inventory = player.getOpenInventory();
+                
+                inventory.setCursor(cursor);
+
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    player.updateInventory();
+                }, 1L);
+            }
+        }
+
+        else if (event.getClick().isLeftClick() && isOurBundle(cursor) && current != null && current.getType() != Material.AIR) {
+            Inventory bundleInv = getBundleInventory(cursor);
+            if (bundleInv == null) return;
+            
             int itemWeight = getItemWeight(current);
             int currentWeight = calculateWeight(bundleInv);
 
@@ -267,9 +309,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 current.setAmount(current.getAmount() - canAdd);
 
                 saveBundleInventory(cursor, bundleInv);
-                updateBundle(cursor);   // ← updates lore + stack size
-
-                player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
+                updateBundle(cursor);
             }
 
             // Fix creative inventory for being out of async
@@ -285,7 +325,10 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
 
         // RIGHT CLICK on empty slot: Remove last item (LIFO style)
-        else if (event.getClick().isRightClick() && (current == null || current.getType() == Material.AIR)) {
+        else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR)) {
+            Inventory bundleInv = getBundleInventory(cursor);
+            if (bundleInv == null) return;
+            
             ItemStack[] contents = bundleInv.getContents();
             for (int i = contents.length - 1; i >= 0; i--) {
                 ItemStack slotItem = contents[i];
@@ -302,9 +345,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     }
 
                     saveBundleInventory(cursor, bundleInv);
-                    updateBundle(cursor);   // ← updates lore + stack size
-
-                    player.sendMessage(Component.text("Removed 1x " + slotItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle.", NamedTextColor.YELLOW));
+                    updateBundle(cursor);
                     return;
                 }
             }
@@ -320,9 +361,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     player.updateInventory();
                 }, 1L);
             }
-        }
-
-        else if (event.getAction() == InventoryAction.PLACE_ALL && current.getType() == Material.AIR) {
+        } else {
             event.setCancelled(false);
         }
     }
