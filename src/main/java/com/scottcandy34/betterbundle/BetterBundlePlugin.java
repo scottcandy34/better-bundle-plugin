@@ -1,9 +1,9 @@
 package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -11,29 +11,25 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     private NamespacedKey bundleKey;
-    private NamespacedKey contentsKey;
 
     private static final int MAX_WEIGHT = 64;
     private static final NamespacedKey RECIPE_KEY = new NamespacedKey("betterbundle", "bundle_recipe");
@@ -41,7 +37,6 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         bundleKey = new NamespacedKey(this, "is_bundle");
-        contentsKey = new NamespacedKey(this, "bundle_contents");
 
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -73,11 +68,15 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     public ItemStack createBundleItem(int amount) {
-        // Changed to SHULKER_BOX as requested
         ItemStack item = new ItemStack(Material.SHULKER_BOX, amount);
         ItemMeta meta = item.getItemMeta();
 
-        if (meta != null) {
+        if (meta instanceof BlockStateMeta bsm) {
+            // Set up real Shulker Box inventory
+            ShulkerBox shulker = (ShulkerBox) bsm.getBlockState();
+            shulker.getInventory().clear(); // empty by default
+
+            // Custom name + lore
             meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
 
@@ -90,10 +89,12 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
+            // Mark as our custom bundle
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
-            pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0]);
 
+            // Save the ShulkerBox state back into the item
+            bsm.setBlockState(shulker);
             item.setItemMeta(meta);
         }
         return item;
@@ -107,48 +108,27 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         return pdc.has(bundleKey, PersistentDataType.BYTE);
     }
 
-    private byte[] serializeItems(List<ItemStack> items) {
-        if (items == null || items.isEmpty()) {
-            return new byte[0];
-        }
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             BukkitObjectOutputStream boos = new BukkitObjectOutputStream(baos)) {
-            boos.writeInt(items.size());
-            for (ItemStack item : items) {
-                boos.writeObject(item);
-            }
-            return baos.toByteArray();
-        } catch (IOException e) {
-            getLogger().warning("Failed to serialize bundle contents: " + e.getMessage());
-            return new byte[0];
-        }
+    private Inventory getBundleInventory(ItemStack bundle) {
+        if (!(bundle.getItemMeta() instanceof BlockStateMeta bsm)) return null;
+        if (!(bsm.getBlockState() instanceof ShulkerBox shulker)) return null;
+        return shulker.getInventory();
     }
 
-    @SuppressWarnings("unchecked")
-    private List<ItemStack> deserializeItems(byte[] data) {
-        List<ItemStack> items = new ArrayList<>();
-        if (data == null || data.length == 0) {
-            return items;
-        }
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
-             BukkitObjectInputStream bois = new BukkitObjectInputStream(bais)) {
-            int size = bois.readInt();
-            for (int i = 0; i < size; i++) {
-                Object obj = bois.readObject();
-                if (obj instanceof ItemStack) {
-                    items.add((ItemStack) obj);
-                }
-            }
-        } catch (IOException | ClassNotFoundException e) {
-            getLogger().warning("Failed to deserialize bundle contents: " + e.getMessage());
-        }
-        return items;
+    private void saveBundleInventory(ItemStack bundle, Inventory inventory) {
+        if (!(bundle.getItemMeta() instanceof BlockStateMeta bsm)) return;
+        if (!(bsm.getBlockState() instanceof ShulkerBox shulker)) return;
+
+        // Copy contents back
+        shulker.getInventory().setContents(inventory.getContents());
+
+        bsm.setBlockState(shulker);
+        bundle.setItemMeta(bsm);
     }
 
-    private int calculateWeight(List<ItemStack> items) {
+    private int calculateWeight(Inventory inventory) {
         int weight = 0;
-        for (ItemStack item : items) {
-            if (item == null) continue;
+        for (ItemStack item : inventory.getContents()) {
+            if (item == null || item.getType() == Material.AIR) continue;
             weight += getItemWeight(item);
         }
         return weight;
@@ -156,9 +136,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     private int getItemWeight(ItemStack item) {
         Material type = item.getType();
-        if (isBlockedItem(type)) {
-            return Integer.MAX_VALUE;
-        }
+        if (isBlockedItem(type)) return Integer.MAX_VALUE;
+
         if (type.name().contains("SHULKER") || type.name().contains("CHEST") ||
             type == Material.ENDER_CHEST || type == Material.BUNDLE ||
             type.name().endsWith("_AXE") || type.name().endsWith("_PICKAXE") ||
@@ -178,11 +157,15 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                type.name().contains("BARREL");
     }
 
-    private void updateBundleLore(ItemStack bundle, List<ItemStack> contents) {
-        if (!bundle.hasItemMeta()) return;
-        ItemMeta meta = bundle.getItemMeta();
-        int currentWeight = calculateWeight(contents);
+    private void updateBundleLore(ItemStack bundle) {
+        Inventory inv = getBundleInventory(bundle);
+        if (inv == null) return;
+
+        int currentWeight = calculateWeight(inv);
         int percent = (int) ((currentWeight / (double) MAX_WEIGHT) * 100);
+
+        ItemMeta meta = bundle.getItemMeta();
+        if (meta == null) return;
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.text("A portable storage pouch.", NamedTextColor.GRAY)
@@ -209,28 +192,26 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
-        
-        ItemStack cursor = event.getCursor();      // The Bundle (in cursor)
-        ItemStack current = event.getCurrentItem(); // Item in the clicked slot
+
+        ItemStack cursor = event.getCursor();
+        ItemStack current = event.getCurrentItem();
 
         if (!isOurBundle(cursor)) return;
 
+        // Skip Creative mode
         if (event.getView().getType() == InventoryType.CREATIVE) {
             return;
         }
 
-        event.setCancelled(true); // Prevent vanilla behavior
+        event.setCancelled(true);
 
-        ItemMeta meta = cursor.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        List<ItemStack> contents = deserializeItems(
-                pdc.getOrDefault(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0])
-        );
+        Inventory bundleInv = getBundleInventory(cursor);
+        if (bundleInv == null) return;
 
-        // === LEFT CLICK: Add item from slot into Bundle ===
+        // LEFT CLICK: Add item from slot into Bundle
         if (event.getClick().isLeftClick() && current != null && current.getType() != Material.AIR) {
             int itemWeight = getItemWeight(current);
-            int currentWeight = calculateWeight(contents);
+            int currentWeight = calculateWeight(bundleInv);
 
             if (isBlockedItem(current.getType())) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
@@ -246,13 +227,14 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             if (canAdd > 0) {
                 ItemStack added = current.clone();
                 added.setAmount(canAdd);
-                contents.add(added);
+
+                // Add to first available slot in the real Shulker inventory
+                bundleInv.addItem(added);
 
                 current.setAmount(current.getAmount() - canAdd);
 
-                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
-                cursor.setItemMeta(meta);
-                updateBundleLore(cursor, contents);
+                saveBundleInventory(cursor, bundleInv);
+                updateBundleLore(cursor);
 
                 player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
             }
@@ -269,30 +251,32 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // === RIGHT CLICK on empty slot: Remove last item from Bundle and place it in the clicked slot ===
+        // RIGHT CLICK on empty slot: Remove last item (LIFO style)
         else if (event.getClick().isRightClick() && (current == null || current.getType() == Material.AIR)) {
-            if (!contents.isEmpty()) {
-                ItemStack lastItem = contents.remove(contents.size() - 1);
+            ItemStack[] contents = bundleInv.getContents();
+            for (int i = contents.length - 1; i >= 0; i--) {
+                ItemStack slotItem = contents[i];
+                if (slotItem != null && slotItem.getType() != Material.AIR) {
+                    bundleInv.setItem(i, null);
 
-                // Place directly into the clicked slot (best UX)
-                var clickedInventory = event.getClickedInventory();
-                int slot = event.getSlot();
+                    var clickedInventory = event.getClickedInventory();
+                    int slot = event.getSlot();
 
-                if (clickedInventory != null) {
-                    clickedInventory.setItem(slot, lastItem);
-                    player.sendMessage(Component.text("Removed 1x " + lastItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle.", NamedTextColor.YELLOW));
-                } else {
-                    // Fallback if something goes wrong
-                    player.getInventory().addItem(lastItem);
+                    if (clickedInventory != null) {
+                        clickedInventory.setItem(slot, slotItem);
+                    } else {
+                        player.getInventory().addItem(slotItem);
+                    }
+
+                    saveBundleInventory(cursor, bundleInv);
+                    updateBundleLore(cursor);
+
+                    player.sendMessage(Component.text("Removed 1x " + slotItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle.", NamedTextColor.YELLOW));
+                    return;
                 }
-
-                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
-                cursor.setItemMeta(meta);
-                updateBundleLore(cursor, contents);
-            } else {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
-
+            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            
             // Fix creative inventory for being out of async
             if (event.getView().getType() == InventoryType.CREATIVE) {
                 InventoryView inventory = player.getOpenInventory();
