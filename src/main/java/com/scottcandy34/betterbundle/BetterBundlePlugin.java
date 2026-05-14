@@ -76,6 +76,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             ShulkerBox shulker = (ShulkerBox) bsm.getBlockState();
             shulker.getInventory().clear(); // empty by default
 
+            meta.setItemModel(NamespacedKey.minecraft("bundle"));
+
             // Custom name + lore
             meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
@@ -96,6 +98,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             // Save the ShulkerBox state back into the item
             bsm.setBlockState(shulker);
             item.setItemMeta(meta);
+            // Empty bundle starts with stack size 16
+            updateBundleStackSize(item);
         }
         return item;
     }
@@ -180,6 +184,32 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         bundle.setItemMeta(meta);
     }
 
+    // NEW: Dynamic stack size (16 when empty, 1 when filled)
+    private void updateBundleStackSize(ItemStack bundle) {
+        Inventory inv = getBundleInventory(bundle);
+        if (inv == null) return;
+
+        boolean hasContents = false;
+        for (ItemStack item : inv.getContents()) {
+            if (item != null && item.getType() != Material.AIR) {
+                hasContents = true;
+                break;
+            }
+        }
+
+        ItemMeta meta = bundle.getItemMeta();
+        if (meta != null) {
+            meta.setMaxStackSize(hasContents ? 1 : 16);
+            bundle.setItemMeta(meta);
+        }
+    }
+
+    // Combined update for convenience
+    private void updateBundle(ItemStack bundle) {
+        updateBundleLore(bundle);
+        updateBundleStackSize(bundle);
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (isOurBundle(event.getItemInHand())) {
@@ -234,7 +264,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 current.setAmount(current.getAmount() - canAdd);
 
                 saveBundleInventory(cursor, bundleInv);
-                updateBundleLore(cursor);
+                updateBundle(cursor);   // ← updates lore + stack size
 
                 player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
             }
@@ -269,7 +299,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     }
 
                     saveBundleInventory(cursor, bundleInv);
-                    updateBundleLore(cursor);
+                    updateBundle(cursor);   // ← updates lore + stack size
 
                     player.sendMessage(Component.text("Removed 1x " + slotItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle.", NamedTextColor.YELLOW));
                     return;
