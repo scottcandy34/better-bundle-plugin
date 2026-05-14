@@ -16,6 +16,7 @@ import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -72,13 +73,11 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         ItemMeta meta = item.getItemMeta();
 
         if (meta instanceof BlockStateMeta bsm) {
-            // Set up real Shulker Box inventory
             ShulkerBox shulker = (ShulkerBox) bsm.getBlockState();
-            shulker.getInventory().clear(); // empty by default
+            shulker.getInventory().clear();
 
             meta.setItemModel(NamespacedKey.minecraft("bundle"));
 
-            // Custom name + lore
             meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
 
@@ -91,23 +90,20 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
-            // Mark as our custom bundle
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
 
-            // Save the ShulkerBox state back into the item
             bsm.setBlockState(shulker);
             item.setItemMeta(meta);
-            // Empty bundle starts with stack size 16
-            updateBundleStackSize(item);
+
+            // Start as completely empty (stack 16, no damage)
+            updateBundle(item);
         }
         return item;
     }
 
     public boolean isOurBundle(ItemStack item) {
-        if (item == null || item.getType() != Material.SHULKER_BOX || !item.hasItemMeta()) {
-            return false;
-        }
+        if (item == null || item.getType() != Material.SHULKER_BOX || !item.hasItemMeta()) return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         return pdc.has(bundleKey, PersistentDataType.BYTE);
     }
@@ -122,9 +118,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         if (!(bundle.getItemMeta() instanceof BlockStateMeta bsm)) return;
         if (!(bsm.getBlockState() instanceof ShulkerBox shulker)) return;
 
-        // Copy contents back
         shulker.getInventory().setContents(inventory.getContents());
-
         bsm.setBlockState(shulker);
         bundle.setItemMeta(bsm);
     }
@@ -184,30 +178,39 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         bundle.setItemMeta(meta);
     }
 
-    // NEW: Dynamic stack size (16 when empty, 1 when filled)
-    private void updateBundleStackSize(ItemStack bundle) {
+    private void updateBundleStackAndDurability(ItemStack bundle) {
         Inventory inv = getBundleInventory(bundle);
         if (inv == null) return;
 
-        boolean hasContents = false;
-        for (ItemStack item : inv.getContents()) {
-            if (item != null && item.getType() != Material.AIR) {
-                hasContents = true;
-                break;
+        int weight = calculateWeight(inv);
+        boolean isEmpty = weight == 0;
+
+        ItemMeta meta = bundle.getItemMeta();
+        if (meta == null) return;
+
+        if (isEmpty) {
+            // Empty bundle: stackable + NO durability bar
+            meta.setMaxStackSize(16);
+            if (meta instanceof Damageable damageable) {
+                damageable.resetDamage();
+            }
+            // Do not set any Damageable values when empty
+        } else {
+            // Filled bundle: unstackable + durability increases with weight
+            meta.setMaxStackSize(1);
+            if (meta instanceof Damageable damageable) {
+                damageable.setMaxDamage(MAX_WEIGHT);
+                getLogger().info("weight: " + weight);
+                damageable.setDamage(MAX_WEIGHT - weight); // exactly the weight (increases when adding items)
             }
         }
 
-        ItemMeta meta = bundle.getItemMeta();
-        if (meta != null) {
-            meta.setMaxStackSize(hasContents ? 1 : 16);
-            bundle.setItemMeta(meta);
-        }
+        bundle.setItemMeta(meta);
     }
 
-    // Combined update for convenience
     private void updateBundle(ItemStack bundle) {
         updateBundleLore(bundle);
-        updateBundleStackSize(bundle);
+        updateBundleStackAndDurability(bundle);
     }
 
     @EventHandler
@@ -238,7 +241,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         Inventory bundleInv = getBundleInventory(cursor);
         if (bundleInv == null) return;
 
-        // LEFT CLICK: Add item from slot into Bundle
+        // LEFT CLICK: Add item
         if (event.getClick().isLeftClick() && current != null && current.getType() != Material.AIR) {
             int itemWeight = getItemWeight(current);
             int currentWeight = calculateWeight(bundleInv);
