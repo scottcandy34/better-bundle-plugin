@@ -82,11 +82,13 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
 
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("A portable storage pouch.", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, true));
-            lore.add(Component.text("Right-click to add/remove items.", NamedTextColor.YELLOW)
+            lore.add(Component.text("Can hold a mixed", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("Shift + Right-click to empty.", NamedTextColor.RED)
+            lore.add(Component.text("stack of items", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, true));
+            lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
@@ -160,21 +162,22 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         if (inv == null) return;
 
         int currentWeight = calculateWeight(inv);
-        int percent = (int) ((currentWeight / (double) MAX_WEIGHT) * 100);
 
         ItemMeta meta = bundle.getItemMeta();
         if (meta == null) return;
 
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text("A portable storage pouch.", NamedTextColor.GRAY)
+        if (currentWeight == 0) {
+            lore.add(Component.text("Can hold a mixed", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("stack of items", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        }
+        lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
             .decoration(TextDecoration.ITALIC, true));
-        lore.add(Component.text("Weight: " + currentWeight + "/" + MAX_WEIGHT + " (" + percent + "%)",
-            currentWeight > MAX_WEIGHT * 0.8 ? NamedTextColor.RED : NamedTextColor.GREEN)
-            .decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text("Right-click: Add/Remove | Shift+Right: Empty", NamedTextColor.YELLOW)
+        lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
             .decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
-
         bundle.setItemMeta(meta);
     }
 
