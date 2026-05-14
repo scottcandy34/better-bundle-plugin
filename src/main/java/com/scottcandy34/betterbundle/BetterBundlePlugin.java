@@ -3,6 +3,7 @@ package com.scottcandy34.betterbundle;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -71,7 +72,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
      * Creates a new Bundle item stack with proper meta and PDC marker.
      */
     public ItemStack createBundleItem(int amount) {
-        ItemStack item = new ItemStack(Material.BUNDLE, amount);
+        // Use LEATHER instead of BUNDLE to avoid vanilla bundle behavior
+        ItemStack item = new ItemStack(Material.LEATHER, amount);
         ItemMeta meta = item.getItemMeta();
 
         if (meta != null) {
@@ -87,6 +89,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
+            // Mark as our custom bundle
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
             pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0]);
@@ -97,7 +100,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isOurBundle(ItemStack item) {
-        if (item == null || item.getType() != Material.BUNDLE || !item.hasItemMeta()) {
+        if (item == null || item.getType() != Material.LEATHER || !item.hasItemMeta()) {
             return false;
         }
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
@@ -277,9 +280,79 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        ItemStack current = event.getCurrentItem();
-        if (isOurBundle(current) && event.getClick().isRightClick()) {
-            // Reserved for future expansion
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        ItemStack cursor = event.getCursor();      // The Bundle (in cursor)
+        ItemStack current = event.getCurrentItem(); // Item in the clicked slot
+
+        if (!isOurBundle(cursor)) return;
+
+        event.setCancelled(true); // Prevent vanilla behavior
+
+        ItemMeta meta = cursor.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        List<ItemStack> contents = deserializeItems(
+                pdc.getOrDefault(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0])
+        );
+
+        // === LEFT CLICK: Add item from slot into Bundle ===
+        if (event.getClick().isLeftClick() && current != null && current.getType() != Material.AIR) {
+            int itemWeight = getItemWeight(current);
+            int currentWeight = calculateWeight(contents);
+
+            if (isBlockedItem(current.getType())) {
+                player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+                return;
+            }
+
+            if (currentWeight + itemWeight > MAX_WEIGHT) {
+                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
+                return;
+            }
+
+            int canAdd = Math.min(current.getAmount(), (MAX_WEIGHT - currentWeight) / Math.max(1, itemWeight));
+            if (canAdd > 0) {
+                ItemStack added = current.clone();
+                added.setAmount(canAdd);
+                contents.add(added);
+
+                current.setAmount(current.getAmount() - canAdd);
+
+                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
+                cursor.setItemMeta(meta);
+                updateBundleLore(cursor, contents);
+
+                player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
+            }
+        }
+
+        // === RIGHT CLICK on empty slot: Remove last item from Bundle and place it in the clicked slot ===
+        else if (event.getClick().isRightClick() && (current == null || current.getType() == Material.AIR)) {
+            if (!contents.isEmpty()) {
+                ItemStack lastItem = contents.remove(contents.size() - 1);
+
+                // Place directly into the clicked slot (best UX)
+                var clickedInventory = event.getClickedInventory();
+                int slot = event.getSlot();
+
+                if (clickedInventory != null) {
+                    clickedInventory.setItem(slot, lastItem);
+                    player.sendMessage(Component.text("Removed 1x " + lastItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle.", NamedTextColor.YELLOW));
+                } else {
+                    // Fallback if something goes wrong
+                    player.getInventory().addItem(lastItem);
+                }
+
+                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
+                cursor.setItemMeta(meta);
+                updateBundleLore(cursor, contents);
+            } else {
+                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            }
+        }
+
+        else if (event.isLeftClick() && current.getType() == Material.AIR) {
+            event.setCancelled(false);
         }
     }
 }
