@@ -6,8 +6,10 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -198,94 +200,18 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        ItemStack item = event.getItem();
-        if (!isOurBundle(item)) return;
-
-        event.setCancelled(true);
-
-        var player = event.getPlayer();
-        boolean isSneaking = player.isSneaking();
-        ItemStack offHand = player.getInventory().getItemInOffHand();
-
-        ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        byte[] data = pdc.getOrDefault(contentsKey, PersistentDataType.BYTE_ARRAY, new byte[0]);
-        List<ItemStack> contents = deserializeItems(data);
-
-        if (isSneaking) {
-            if (!contents.isEmpty()) {
-                for (ItemStack contentItem : contents) {
-                    if (contentItem != null && contentItem.getType() != Material.AIR) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), contentItem);
-                    }
-                }
-                contents.clear();
-                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
-                item.setItemMeta(meta);
-                updateBundleLore(item, contents);
-                player.sendMessage(Component.text("Bundle emptied!", NamedTextColor.GREEN));
-            } else {
-                player.sendMessage(Component.text("Bundle is already empty.", NamedTextColor.GRAY));
-            }
-            return;
-        }
-
-        if (offHand != null && offHand.getType() != Material.AIR) {
-            int itemWeight = getItemWeight(offHand);
-            int currentWeight = calculateWeight(contents);
-
-            if (isBlockedItem(offHand.getType())) {
-                player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
-                return;
-            }
-
-            if (currentWeight + itemWeight > MAX_WEIGHT) {
-                player.sendMessage(Component.text("Not enough space in the Bundle! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
-                return;
-            }
-
-            int canAdd = Math.min(offHand.getAmount(), (MAX_WEIGHT - currentWeight) / Math.max(1, itemWeight));
-            if (canAdd > 0) {
-                ItemStack added = offHand.clone();
-                added.setAmount(canAdd);
-                contents.add(added);
-                offHand.setAmount(offHand.getAmount() - canAdd);
-                if (offHand.getAmount() <= 0) {
-                    player.getInventory().setItemInOffHand(null);
-                }
-
-                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
-                item.setItemMeta(meta);
-                updateBundleLore(item, contents);
-                player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
-            }
-        } else {
-            if (!contents.isEmpty()) {
-                ItemStack lastItem = contents.remove(contents.size() - 1);
-                if (player.getInventory().addItem(lastItem).isEmpty()) {
-                    player.sendMessage(Component.text("Removed 1x " + lastItem.getType().name().toLowerCase().replace('_', ' ') + " from Bundle (LIFO).", NamedTextColor.YELLOW));
-                } else {
-                    player.getWorld().dropItemNaturally(player.getLocation(), lastItem);
-                    player.sendMessage(Component.text("Inventory full! Dropped item.", NamedTextColor.RED));
-                }
-                pdc.set(contentsKey, PersistentDataType.BYTE_ARRAY, serializeItems(contents));
-                item.setItemMeta(meta);
-                updateBundleLore(item, contents);
-            } else {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
-            }
-        }
-    }
-
-    @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+        
         ItemStack cursor = event.getCursor();      // The Bundle (in cursor)
         ItemStack current = event.getCurrentItem(); // Item in the clicked slot
 
         if (!isOurBundle(cursor)) return;
+
+        if (event.getView().getType() == InventoryType.CREATIVE) {
+            return;
+        }
 
         event.setCancelled(true); // Prevent vanilla behavior
 
@@ -324,6 +250,17 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
                 player.sendMessage(Component.text("Added " + canAdd + "x " + added.getType().name().toLowerCase().replace('_', ' ') + " to Bundle.", NamedTextColor.GREEN));
             }
+
+            // Fix creative inventory for being out of async
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                InventoryView inventory = player.getOpenInventory();
+                
+                inventory.setCursor(cursor);
+
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    player.updateInventory();
+                }, 1L);
+            }
         }
 
         // === RIGHT CLICK on empty slot: Remove last item from Bundle and place it in the clicked slot ===
@@ -349,9 +286,20 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             } else {
                 player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
+
+            // Fix creative inventory for being out of async
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                InventoryView inventory = player.getOpenInventory();
+                
+                inventory.setCursor(cursor);
+
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    player.updateInventory();
+                }, 1L);
+            }
         }
 
-        else if (event.isLeftClick() && current.getType() == Material.AIR) {
+        else if (event.getAction() == InventoryAction.PLACE_ALL && current.getType() == Material.AIR) {
             event.setCancelled(false);
         }
     }
