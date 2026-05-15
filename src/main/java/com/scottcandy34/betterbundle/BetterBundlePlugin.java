@@ -8,8 +8,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
@@ -238,6 +239,17 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             return;
         }
 
+        // Shift + Left Click on the Bundle (works even when completely empty)
+        if (event.getClick() == ClickType.SHIFT_LEFT && isOurBundle(current)) {
+            event.setCancelled(true);
+            updateBundle(current); // ← ensures empty bundles have fresh BlockStateMeta before opening
+            Inventory bundleInv = getBundleInventory(current);
+            if (bundleInv != null) {
+                player.openInventory(bundleInv);
+            }
+            return;
+        }
+
         event.setCancelled(true);
 
         // allow bundle stacking
@@ -372,6 +384,33 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         } else {
             event.setCancelled(false);
+        }
+    }
+
+    // When player closes the bundle GUI, refresh lore + durability bar on all bundles
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+
+        // Save + refresh EVERY bundle the player is carrying
+        // This ensures changes made inside the opened ShulkerBox GUI are persisted back into the Bundle item
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (isOurBundle(item)) {
+                Inventory inv = getBundleInventory(item);
+                if (inv != null) {
+                    saveBundleInventory(item, inv);
+                }
+                updateBundle(item);
+            }
+        }
+        // Also handle cursor (in case they closed while holding a bundle)
+        ItemStack cursor = player.getItemOnCursor();
+        if (isOurBundle(cursor)) {
+            Inventory inv = getBundleInventory(cursor);
+            if (inv != null) {
+                saveBundleInventory(cursor, inv);
+            }
+            updateBundle(cursor);
         }
     }
 }
