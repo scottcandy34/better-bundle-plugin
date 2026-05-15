@@ -25,6 +25,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,22 +77,10 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         if (meta instanceof BlockStateMeta bsm) {
             ShulkerBox shulker = (ShulkerBox) bsm.getBlockState();
             shulker.getInventory().clear();
-
+            
+            shulker.customName(Component.text("Bundle", NamedTextColor.GOLD)
+                .decoration(TextDecoration.ITALIC, false));
             meta.setItemModel(NamespacedKey.minecraft("bundle"));
-
-            meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
-                .decoration(TextDecoration.ITALIC, false));
-
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("Can hold a mixed", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("stack of items", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, true));
-            lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
-                .decoration(TextDecoration.ITALIC, false));
-            meta.lore(lore);
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
@@ -227,6 +216,17 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     private void updateBundle(ItemStack bundle) {
         updateBundleLore(bundle);
         updateBundleStackAndDurability(bundle);
+    }
+
+    private boolean isOurInventoryView(InventoryView inventoryView) {
+        // Convert title to string so we can do normal string check
+        String title = PlainTextComponentSerializer.plainText().serialize(inventoryView.title());
+        
+        if (!"Bundle".equals(title)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @EventHandler
@@ -404,6 +404,10 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
+
+        if (!isOurInventoryView(event.getView())) {
+            return;
+        }
 
         // Save + refresh EVERY bundle the player is carrying
         // This ensures changes made inside the opened ShulkerBox GUI are persisted back into the Bundle item
