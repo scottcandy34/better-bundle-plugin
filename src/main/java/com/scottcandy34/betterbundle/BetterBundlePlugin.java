@@ -248,53 +248,77 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             if (isOurSlot(content)) {
                 if (!(content.getItemMeta() instanceof BundleMeta meta)) continue;
 
-                // Get current items and filter out any null or AIR slots
-                java.util.List<ItemStack> currentItems = new java.util.ArrayList<>();
-                for (ItemStack item : meta.getItems()) {
-                    if (item != null && item.getType() != Material.AIR) {
-                        currentItems.add(item.clone());
+                int unique = getUniqueItemCount(content);
+                boolean alreadyPresent = false;
+
+                // Check if this exact type is already in the Slot
+                for (ItemStack existing : meta.getItems()) {
+                    if (existing != null && existing.getType() == toAdd.getType()) {
+                        alreadyPresent = true;
+                        break;
                     }
                 }
 
-                // Use temporary inventory so Bukkit handles stacking correctly
-                Inventory tempInv = Bukkit.createInventory(null, 27);
-                tempInv.setContents(currentItems.toArray(new ItemStack[0]));
-                tempInv.addItem(toAdd.clone());
+                // ONLY add if under the limit or the item type already exists
+                if (unique < 12 || alreadyPresent) {
+                    // Use temporary inventory so Bukkit handles stacking correctly
+                    Inventory tempInv = Bukkit.createInventory(null, 27);
 
-                // Filter again before setting back to BundleMeta (this is the key fix)
-                java.util.List<ItemStack> finalItems = new java.util.ArrayList<>();
-                for (ItemStack item : tempInv.getContents()) {
-                    if (item != null && item.getType() != Material.AIR) {
-                        finalItems.add(item);
+                    java.util.List<ItemStack> currentItems = new java.util.ArrayList<>();
+                    for (ItemStack item : meta.getItems()) {
+                        if (item != null && item.getType() != Material.AIR) {
+                            currentItems.add(item.clone());
+                        }
                     }
-                }
+                    tempInv.setContents(currentItems.toArray(new ItemStack[0]));
 
-                meta.setItems(finalItems);
-                content.setItemMeta(meta);
-                return true;
+                    tempInv.addItem(toAdd.clone());
+
+                    // Filter out null/AIR before setting back
+                    java.util.List<ItemStack> finalItems = new java.util.ArrayList<>();
+                    for (ItemStack item : tempInv.getContents()) {
+                        if (item != null && item.getType() != Material.AIR) {
+                            finalItems.add(item);
+                        }
+                    }
+
+                    meta.setItems(finalItems);
+                    content.setItemMeta(meta);
+                    return true;
+                }
+                // If we reach here, this Slot is full (12 unique) and this is a new type → try next Slot
             }
         }
-        return false;
+        return false; // No suitable Slot found or all Slots are at 12 unique
     }
 
     private boolean addNewSlotToBundle(Inventory bundleInv, ItemStack toAdd) {
-        int lastSlotIndex = bundleInv.getSize() - 1;
-        ItemStack previousItem = bundleInv.getItem(lastSlotIndex);
+        for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
+            ItemStack existing = bundleInv.getItem(i);
 
-        // Place the new Slot in the last position
-        bundleInv.setItem(lastSlotIndex, createSlotItem(1));
+            // Found a slot we can use (empty or not a Slot)
+            if (existing == null || existing.getType() == Material.AIR || !isOurSlot(existing)) {
+                // Remember whatever was here before
+                ItemStack previousItem = (existing != null && existing.getType() != Material.AIR) 
+                    ? existing.clone() : null;
 
-        // Move the previous item (if any) into the new Slot
-        if (previousItem != null && previousItem.getType() != Material.AIR) {
-            tryAddToExistingSlot(bundleInv, previousItem.clone());
+                // Place the new Slot in this position
+                bundleInv.setItem(i, createSlotItem(1));
+
+                // Move the previous item (if any) into the new Slot
+                if (previousItem != null) {
+                    tryAddToExistingSlot(bundleInv, previousItem);
+                }
+
+                // Add the overflowing item into the new Slot
+                if (toAdd != null && toAdd.getType() != Material.AIR) {
+                    tryAddToExistingSlot(bundleInv, toAdd.clone());
+                }
+
+                return true;
+            }
         }
-
-        // Add the new overflowing item into the Slot
-        if (toAdd != null && toAdd.getType() != Material.AIR) {
-            tryAddToExistingSlot(bundleInv, toAdd.clone());
-        }
-
-        return true; // always succeeds now
+        return false; // no slots left (should be extremely rare)
     }
 
     private int getSingleItemWeight(Material type) {
