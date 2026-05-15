@@ -5,7 +5,6 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,6 +19,7 @@ import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BundleMeta;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -135,7 +135,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         if (meta != null) {
             meta.setItemModel(NamespacedKey.minecraft("shulker_spawn_egg"));
 
-            meta.displayName(Component.text("Slot", NamedTextColor.WHITE)
+            meta.displayName(Component.text("Slot", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
 
             List<Component> lore = new ArrayList<>();
@@ -340,6 +340,18 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
     }
 
+    private int getUniqueItemCount(ItemStack slot) {
+        if (!isOurSlot(slot) || !(slot.getItemMeta() instanceof BundleMeta meta)) return 0;
+
+        java.util.Set<Material> unique = new java.util.HashSet<>();
+        for (ItemStack content : meta.getItems()) {
+            if (content != null && content.getType() != Material.AIR) {
+                unique.add(content.getType());
+            }
+        }
+        return unique.size();
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (isOurBundle(event.getItemInHand())) {
@@ -350,18 +362,105 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
+        if (!(event.getWhoClicked() instanceof Player player)) return;
 
         ItemStack cursor = event.getCursor();
         ItemStack current = event.getCurrentItem();
-
-        if (!isOurBundle(cursor) && !isOurBundle(current)) return;
 
         // Skip Creative mode
         if (event.getView().getType() == InventoryType.CREATIVE) {
             return;
         }
+
+        if (event.getClick() == ClickType.SHIFT_RIGHT && isOurSlot(cursor)) {
+            event.setCancelled(true);
+
+            if (!(cursor.getItemMeta() instanceof BundleMeta meta)) return;
+
+            // Get only valid items
+            java.util.List<ItemStack> validItems = new java.util.ArrayList<>();
+            for (ItemStack item : meta.getItems()) {
+                if (item != null && item.getType() != Material.AIR) {
+                    validItems.add(item.clone());
+                }
+            }
+
+            // Clear the Slot
+            meta.setItems(java.util.Collections.emptyList());
+            cursor.setItemMeta(meta);
+
+            // Add as much as possible to player's inventory
+            java.util.HashMap<Integer, ItemStack> leftovers = player.getInventory().addItem(
+                validItems.toArray(new ItemStack[0])
+            );
+
+            // Put any items that didn't fit back into the Slot
+            if (!leftovers.isEmpty()) {
+                java.util.List<ItemStack> toPutBack = new java.util.ArrayList<>(leftovers.values());
+                meta.setItems(toPutBack);
+                cursor.setItemMeta(meta);
+            }
+
+            // Refresh display (uses same update method as bundle since it only touches lore/durability for Slot)
+            updateBundle(cursor);
+
+            // Feedback
+            if (leftovers.isEmpty()) {
+                player.sendMessage(Component.text("Slot emptied into inventory!", NamedTextColor.GRAY));
+            } else {
+                player.sendMessage(Component.text("Slot partially emptied (inventory full)", NamedTextColor.YELLOW));
+            }
+
+            // Fix creative inventory if needed
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                Bukkit.getScheduler().runTaskLater(this, player::updateInventory, 1L);
+            }
+            return;
+        }
+
+        else if (isOurSlot(current) || isOurSlot(cursor)) {
+            // Only restrict when actually trying to INSERT a new item into the Slot
+            boolean isInsertionAttempt = event.getClick().isLeftClick() &&
+                                        ((isOurSlot(current) && cursor != null && cursor.getType() != Material.AIR) ||
+                                        (isOurSlot(cursor) && current != null && current.getType() != Material.AIR));
+
+            if (!isInsertionAttempt) {
+                event.setCancelled(false); // allow normal movement, pickup, placement, right-click, etc.
+                return;
+            }
+
+            event.setCancelled(true);
+
+            ItemStack slotItem = isOurSlot(current) ? current : cursor;
+            int currentUnique = getUniqueItemCount(slotItem);
+
+            // Determine what type is being added
+            ItemStack adding = isOurSlot(current) ? cursor : current;
+            Material addingType = (adding != null) ? adding.getType() : Material.AIR;
+
+            // Check if this type is already present in the slot
+            boolean alreadyPresent = false;
+            if (addingType != Material.AIR && slotItem.getItemMeta() instanceof BundleMeta meta) {
+                for (ItemStack existing : meta.getItems()) {
+                    if (existing != null && existing.getType() == addingType) {
+                        alreadyPresent = true;
+                        break;
+                    }
+                }
+            }
+
+            // Allow if under limit OR this type already exists
+            if (currentUnique < 12 || alreadyPresent) {
+                event.setCancelled(false); // let original vanilla bundle logic handle the insertion
+                return;
+            }
+
+            // Otherwise block new unique type
+            player.sendMessage(Component.text("Slot can only hold 12 different items!", NamedTextColor.RED));
+            return;
+        }
+
+        if (!isOurBundle(cursor) && !isOurBundle(current)) return;
 
         // Shift + Left Click on the Bundle (works even when completely empty)
         if (event.getClick() == ClickType.SHIFT_LEFT && isOurBundle(current)) {
