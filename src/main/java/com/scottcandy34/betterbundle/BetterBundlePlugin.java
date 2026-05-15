@@ -179,6 +179,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             .decoration(TextDecoration.ITALIC, true));
         lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
             .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Shift + Right-click to empty.", NamedTextColor.RED)
+            .decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         bundle.setItemMeta(meta);
     }
@@ -265,6 +267,55 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             Inventory bundleInv = getBundleInventory(current);
             if (bundleInv != null) {
                 player.openInventory(bundleInv);
+            }
+            return;
+        }
+
+        // Shift + Right Click on the Bundle
+        else if (event.getClick() == ClickType.SHIFT_RIGHT && isOurBundle(cursor)) {
+            event.setCancelled(true);
+
+            Inventory bundleInv = getBundleInventory(cursor);
+            if (bundleInv == null) return;
+
+            // Get only valid items (fixes the null crash)
+            java.util.List<ItemStack> validItems = new java.util.ArrayList<>();
+            for (ItemStack item : bundleInv.getContents()) {
+                if (item != null && item.getType() != Material.AIR) {
+                    validItems.add(item.clone());
+                }
+            }
+
+            // Clear the bundle
+            bundleInv.clear();
+
+            // Add as much as possible to player's inventory
+            java.util.HashMap<Integer, ItemStack> leftovers = player.getInventory().addItem(
+                validItems.toArray(new ItemStack[0])
+            );
+
+            // Put any items that didn't fit back into the bundle
+            if (!leftovers.isEmpty()) {
+                for (ItemStack leftover : leftovers.values()) {
+                    if (leftover != null && leftover.getType() != Material.AIR) {
+                        bundleInv.addItem(leftover);
+                    }
+                }
+            }
+
+            saveBundleInventory(cursor, bundleInv);
+            updateBundle(cursor);
+
+            // Feedback
+            if (leftovers.isEmpty()) {
+                player.sendMessage(Component.text("Bundle emptied into inventory!", NamedTextColor.GRAY));
+            } else {
+                player.sendMessage(Component.text("Bundle partially emptied (inventory full)", NamedTextColor.YELLOW));
+            }
+
+            // Fix creative inventory if needed
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                Bukkit.getScheduler().runTaskLater(this, player::updateInventory, 1L);
             }
             return;
         }
