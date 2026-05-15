@@ -31,6 +31,8 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 public class BetterBundlePlugin extends JavaPlugin implements Listener {
@@ -274,7 +276,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     // Use temporary inventory so Bukkit handles stacking correctly
                     Inventory tempInv = Bukkit.createInventory(null, 27);
 
-                    java.util.List<ItemStack> currentItems = new java.util.ArrayList<>();
+                    List<ItemStack> currentItems = new ArrayList<>();
                     for (ItemStack item : meta.getItems()) {
                         if (item != null && item.getType() != Material.AIR) {
                             currentItems.add(item.clone());
@@ -285,7 +287,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     tempInv.addItem(toAdd.clone());
 
                     // Filter out null/AIR before setting back
-                    java.util.List<ItemStack> finalItems = new java.util.ArrayList<>();
+                    List<ItemStack> finalItems = new ArrayList<>();
                     for (ItemStack item : tempInv.getContents()) {
                         if (item != null && item.getType() != Material.AIR) {
                             finalItems.add(item);
@@ -303,32 +305,81 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     private boolean addNewSlotToBundle(Inventory bundleInv, ItemStack toAdd) {
-        for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
-            ItemStack existing = bundleInv.getItem(i);
+        repackBundle(bundleInv);
 
-            // Found a slot we can use (empty or not a Slot)
-            if (existing == null || existing.getType() == Material.AIR || !isOurSlot(existing)) {
-                // Remember whatever was here before
-                ItemStack previousItem = (existing != null && existing.getType() != Material.AIR) 
-                    ? existing.clone() : null;
+        // After repack, make sure the overflowing item is placed into the newest Slot
+        if (toAdd != null && toAdd.getType() != Material.AIR) {
+            tryAddToExistingSlot(bundleInv, toAdd.clone());
+        }
 
-                // Place the new Slot in this position
-                bundleInv.setItem(i, createSlotItem(1));
+        return true;
+    }
 
-                // Move the previous item (if any) into the new Slot
-                if (previousItem != null) {
-                    tryAddToExistingSlot(bundleInv, previousItem);
-                }
+        private List<ItemStack> getItemsFromSlot(ItemStack slot) {
+        if (!isOurSlot(slot) || !(slot.getItemMeta() instanceof BundleMeta meta)) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(meta.getItems()); // mutable copy
+    }
 
-                // Add the overflowing item into the new Slot
-                if (toAdd != null && toAdd.getType() != Material.AIR) {
-                    tryAddToExistingSlot(bundleInv, toAdd.clone());
-                }
+    private List<ItemStack> getAllItemsFromBundle(Inventory bundleInv) {
+        List<ItemStack> allItems = new ArrayList<>();
 
-                return true;
+        for (ItemStack item : bundleInv.getContents()) {
+            if (item == null || item.getType() == Material.AIR) continue;
+
+            if (isOurSlot(item)) {
+                // Flatten items inside this Slot
+                allItems.addAll(getItemsFromSlot(item));
+            } else {
+                // Normal item
+                allItems.add(item.clone());
             }
         }
-        return false; // no slots left (should be extremely rare)
+        allItems.removeIf(item -> item == null || item.getType() == Material.AIR);
+        return allItems;
+    }
+
+    private int countSlotItems(Inventory bundleInv) {
+        if (bundleInv == null) return 0;
+
+        int count = 0;
+        for (ItemStack item : bundleInv.getContents()) {
+            if (isOurSlot(item)) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    private void addSlotItemsAtEnd(Inventory bundleInv, int amount) {
+        if (bundleInv == null || amount <= 0) return;
+
+        for (int i = 0; i < amount; i++) {
+            int slotIndex = bundleInv.getSize() - 1 - i;   // 26, 25, 24, ...
+            if (slotIndex >= 0) {
+                bundleInv.setItem(slotIndex, createSlotItem(1));
+            }
+        }
+    }
+
+    private void repackBundle(Inventory bundleInv) {
+        List<ItemStack> allItems = getAllItemsFromBundle(bundleInv);
+        int currentSlotItems = countSlotItems(bundleInv);
+
+        bundleInv.clear();
+
+        addSlotItemsAtEnd(bundleInv, currentSlotItems + 1);
+        
+        for (ItemStack item : allItems) {
+            HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(item);
+
+            if (!leftovers.isEmpty()) {
+                ItemStack remaining = leftovers.values().iterator().next();
+
+                tryAddToExistingSlot(bundleInv, remaining);
+            }
+        }
     }
 
     private int getSingleItemWeight(Material type) {
@@ -455,15 +506,16 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     private ItemStack removeLastItemFromBundle(Inventory bundleInv) {
-        // 1. Check Slots from the very end (rightmost Slot first)
+        if (bundleInv == null) return null;
+
+        // Check Slots from the end (LIFO across Slots)
         for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
             ItemStack item = bundleInv.getItem(i);
             if (isOurSlot(item) && item.getItemMeta() instanceof BundleMeta meta) {
                 List<ItemStack> contents = meta.getItems();
                 if (!contents.isEmpty()) {
-                    // Make a mutable copy to avoid UnsupportedOperationException
-                    java.util.List<ItemStack> mutable = new java.util.ArrayList<>(contents);
-                    ItemStack removed = mutable.remove(mutable.size() - 1); // LIFO inside the Slot
+                    List<ItemStack> mutable = new ArrayList<>(contents);
+                    ItemStack removed = mutable.remove(mutable.size() - 1);
 
                     meta.setItems(mutable);
                     item.setItemMeta(meta);
@@ -472,7 +524,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // 2. No Slots had items → normal LIFO on the main 27 slots
+        // Fallback to normal items
         for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
             ItemStack item = bundleInv.getItem(i);
             if (item != null && item.getType() != Material.AIR) {
@@ -480,7 +532,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 return item;
             }
         }
-        return null; // Bundle is empty
+        return null;
     }
 
     @EventHandler
@@ -738,7 +790,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             ItemStack toAdd = current.clone();
             toAdd.setAmount(canAdd);
 
-            java.util.HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
+            HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
 
             if (!leftovers.isEmpty()) {
                 ItemStack remaining = leftovers.values().iterator().next();
