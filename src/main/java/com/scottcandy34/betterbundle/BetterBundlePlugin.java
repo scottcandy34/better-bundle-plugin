@@ -735,6 +735,33 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 Bukkit.getScheduler().runTaskLater(this, () -> player.updateInventory(), 1L);
             }
         }
+        
+        else if (event.getClick().isRightClick() && isOurBundle(current) && (cursor == null || cursor.getType() == Material.AIR) && hasItemInInventory(current)) {
+            Inventory bundleInv = getBundleInventory(current);
+            if (bundleInv == null) return;
+            
+            ItemStack[] contents = bundleInv.getContents();
+            for (int i = contents.length - 1; i >= 0; i--) {
+                ItemStack slotItem = contents[i];
+                if (slotItem != null && slotItem.getType() != Material.AIR) {
+                    bundleInv.setItem(i, null);
+
+                    // Put removed item into cursor (this is the behavior you want)
+                    player.setItemOnCursor(slotItem.clone());
+
+                    saveBundleInventory(current, bundleInv);
+                    updateBundle(current);
+                    return;
+                }
+            }
+            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            
+            // Fix creative inventory
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                Bukkit.getScheduler().runTaskLater(this, () -> player.updateInventory(), 1L);
+            }
+            return;
+        }
 
         // RIGHT CLICK on empty slot: Remove last item (LIFO style)
         else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR) && hasItemInInventory(cursor)) {
@@ -773,7 +800,9 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     player.updateInventory();
                 }, 1L);
             }
-        } else {
+        } 
+        
+        else {
             event.setCancelled(false);
         }
     }
