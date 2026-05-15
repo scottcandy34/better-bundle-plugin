@@ -228,22 +228,90 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     private int getItemWeight(ItemStack item) {
-        Material type = item.getType();
-        if (isBlockedItem(type)) return Integer.MAX_VALUE;
+        if (item == null || item.getType() == Material.AIR) return 0;
+        if (isBlockedItem(item)) return Integer.MAX_VALUE;
+
+        // Slot items get a fixed weight of 4 (like tools/armor)
+        if (isOurSlot(item)) return 4;
 
         int amount = item.getAmount();
         int maxStack = item.getMaxStackSize();
+
+        // Correct percentage formula (full stack = 64 weight)
         return (amount * 64 + maxStack - 1) / maxStack;
     }
 
-    private int getSingleItemWeight(Material type) {
-        if (isBlockedItem(type)) return Integer.MAX_VALUE;
+    private boolean tryAddToExistingSlot(Inventory bundleInv, ItemStack toAdd) {
+        if (toAdd == null || toAdd.getType() == Material.AIR) return false;
 
-        int maxStack = new ItemStack(type).getMaxStackSize();
-        return (64 + maxStack - 1) / maxStack;   // 1 for 64-stack items, 4 for 16-stack, etc.
+        for (ItemStack content : bundleInv.getContents()) {
+            if (isOurSlot(content)) {
+                if (!(content.getItemMeta() instanceof BundleMeta meta)) continue;
+
+                // Get current items and filter out any null or AIR slots
+                java.util.List<ItemStack> currentItems = new java.util.ArrayList<>();
+                for (ItemStack item : meta.getItems()) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        currentItems.add(item.clone());
+                    }
+                }
+
+                // Use temporary inventory so Bukkit handles stacking correctly
+                Inventory tempInv = Bukkit.createInventory(null, 27);
+                tempInv.setContents(currentItems.toArray(new ItemStack[0]));
+                tempInv.addItem(toAdd.clone());
+
+                // Filter again before setting back to BundleMeta (this is the key fix)
+                java.util.List<ItemStack> finalItems = new java.util.ArrayList<>();
+                for (ItemStack item : tempInv.getContents()) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        finalItems.add(item);
+                    }
+                }
+
+                meta.setItems(finalItems);
+                content.setItemMeta(meta);
+                return true;
+            }
+        }
+        return false;
     }
 
-    private boolean isBlockedItem(Material type) {
+    private boolean addNewSlotToBundle(Inventory bundleInv, ItemStack toAdd) {
+        int lastSlotIndex = bundleInv.getSize() - 1;
+        ItemStack previousItem = bundleInv.getItem(lastSlotIndex);
+
+        // Place the new Slot in the last position
+        bundleInv.setItem(lastSlotIndex, createSlotItem(1));
+
+        // Move the previous item (if any) into the new Slot
+        if (previousItem != null && previousItem.getType() != Material.AIR) {
+            tryAddToExistingSlot(bundleInv, previousItem.clone());
+        }
+
+        // Add the new overflowing item into the Slot
+        if (toAdd != null && toAdd.getType() != Material.AIR) {
+            tryAddToExistingSlot(bundleInv, toAdd.clone());
+        }
+
+        return true; // always succeeds now
+    }
+
+    private int getSingleItemWeight(Material type) {
+        if (type == null || type == Material.AIR) return 0;
+
+        ItemStack temp = new ItemStack(type, 1);
+        if (isBlockedItem(temp)) return Integer.MAX_VALUE;
+
+        int maxStack = temp.getMaxStackSize();
+        return (64 + maxStack - 1) / maxStack;
+    }
+
+    private boolean isBlockedItem(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return false;
+        if (isOurSlot(item)) return false; // Slots are allowed as upgrades inside the Bundle
+
+        Material type = item.getType();
         return type.name().contains("SHULKER") || type == Material.CHEST ||
                type == Material.ENDER_CHEST || type == Material.BUNDLE ||
                type.name().contains("BARREL");
@@ -530,7 +598,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        // LEFT CLICK: Add item
+        // First LEFT CLICK block (Bundle in current) – identical logic
         else if (event.getClick().isLeftClick() && isOurBundle(current) && cursor != null && cursor.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(current);
             if (bundleInv == null) return;
@@ -538,39 +606,52 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             int singleItemWeight = getSingleItemWeight(cursor.getType());
             int currentWeight = calculateWeight(bundleInv);
 
-            if (singleItemWeight == Integer.MAX_VALUE) {
+            if (isBlockedItem(cursor)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
             int remainingWeight = MAX_WEIGHT - currentWeight;
-            int canAddItems = remainingWeight / singleItemWeight;
-            int canAdd = Math.min(cursor.getAmount(), canAddItems);
-
-            if (canAdd > 0) {
-                ItemStack added = cursor.clone();
-                added.setAmount(canAdd);
-
-                bundleInv.addItem(added);
-
-                cursor.setAmount(cursor.getAmount() - canAdd);
-
-                saveBundleInventory(current, bundleInv);
-                updateBundle(current);
+            if (remainingWeight < singleItemWeight) {
+                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
+                return;
             }
 
-            // Fix creative inventory for being out of async
+            int canAdd = Math.min(cursor.getAmount(), remainingWeight / singleItemWeight);
+
+            ItemStack toAdd = cursor.clone();
+            toAdd.setAmount(canAdd);
+
+            // Add to normal 27 slots first
+            java.util.HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
+
+            if (!leftovers.isEmpty()) {
+                ItemStack remaining = leftovers.values().iterator().next();
+
+                // Route leftovers to Slot system
+                if (!tryAddToExistingSlot(bundleInv, remaining)) {
+                    if (!addNewSlotToBundle(bundleInv, remaining)) {
+                        player.sendMessage(Component.text("Bundle is completely full!", NamedTextColor.RED));
+                        cursor.setAmount(remaining.getAmount());
+                        return;
+                    }
+                }
+                cursor.setAmount(0);
+            } else {
+                cursor.setAmount(cursor.getAmount() - canAdd);
+            }
+
+            saveBundleInventory(current, bundleInv);
+            updateBundle(current);
+
             if (event.getView().getType() == InventoryType.CREATIVE) {
                 InventoryView inventory = player.getOpenInventory();
-                
                 inventory.setCursor(cursor);
-
-                Bukkit.getScheduler().runTaskLater(this, () -> {
-                    player.updateInventory();
-                }, 1L);
+                Bukkit.getScheduler().runTaskLater(this, () -> player.updateInventory(), 1L);
             }
         }
 
+        // Second LEFT CLICK block (Bundle in cursor) – identical logic
         else if (event.getClick().isLeftClick() && isOurBundle(cursor) && current != null && current.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
@@ -578,36 +659,46 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             int singleItemWeight = getSingleItemWeight(current.getType());
             int currentWeight = calculateWeight(bundleInv);
 
-            if (singleItemWeight == Integer.MAX_VALUE) {
+            if (isBlockedItem(current)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
             int remainingWeight = MAX_WEIGHT - currentWeight;
-            int canAddItems = remainingWeight / singleItemWeight;
-            int canAdd = Math.min(current.getAmount(), canAddItems);
-
-            if (canAdd > 0) {
-                ItemStack added = current.clone();
-                added.setAmount(canAdd);
-
-                bundleInv.addItem(added);
-
-                current.setAmount(current.getAmount() - canAdd);
-
-                saveBundleInventory(cursor, bundleInv);
-                updateBundle(cursor);
+            if (remainingWeight < singleItemWeight) {
+                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
+                return;
             }
 
-            // Fix creative inventory for being out of async
+            int canAdd = Math.min(current.getAmount(), remainingWeight / singleItemWeight);
+
+            ItemStack toAdd = current.clone();
+            toAdd.setAmount(canAdd);
+
+            java.util.HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
+
+            if (!leftovers.isEmpty()) {
+                ItemStack remaining = leftovers.values().iterator().next();
+
+                if (!tryAddToExistingSlot(bundleInv, remaining)) {
+                    if (!addNewSlotToBundle(bundleInv, remaining)) {
+                        player.sendMessage(Component.text("Bundle is completely full!", NamedTextColor.RED));
+                        current.setAmount(remaining.getAmount());
+                        return;
+                    }
+                }
+                current.setAmount(0);
+            } else {
+                current.setAmount(current.getAmount() - canAdd);
+            }
+
+            saveBundleInventory(cursor, bundleInv);
+            updateBundle(cursor);
+
             if (event.getView().getType() == InventoryType.CREATIVE) {
                 InventoryView inventory = player.getOpenInventory();
-                
                 inventory.setCursor(cursor);
-
-                Bukkit.getScheduler().runTaskLater(this, () -> {
-                    player.updateInventory();
-                }, 1L);
+                Bukkit.getScheduler().runTaskLater(this, () -> player.updateInventory(), 1L);
             }
         }
 
