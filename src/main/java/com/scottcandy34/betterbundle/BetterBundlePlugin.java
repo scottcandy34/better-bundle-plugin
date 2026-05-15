@@ -454,6 +454,35 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         return unique.size();
     }
 
+    private ItemStack removeLastItemFromBundle(Inventory bundleInv) {
+        // 1. Check Slots from the very end (rightmost Slot first)
+        for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
+            ItemStack item = bundleInv.getItem(i);
+            if (isOurSlot(item) && item.getItemMeta() instanceof BundleMeta meta) {
+                List<ItemStack> contents = meta.getItems();
+                if (!contents.isEmpty()) {
+                    // Make a mutable copy to avoid UnsupportedOperationException
+                    java.util.List<ItemStack> mutable = new java.util.ArrayList<>(contents);
+                    ItemStack removed = mutable.remove(mutable.size() - 1); // LIFO inside the Slot
+
+                    meta.setItems(mutable);
+                    item.setItemMeta(meta);
+                    return removed;
+                }
+            }
+        }
+
+        // 2. No Slots had items → normal LIFO on the main 27 slots
+        for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
+            ItemStack item = bundleInv.getItem(i);
+            if (item != null && item.getType() != Material.AIR) {
+                bundleInv.setItem(i, null);
+                return item;
+            }
+        }
+        return null; // Bundle is empty
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (isOurBundle(event.getItemInHand())) {
@@ -736,72 +765,56 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
         
+        else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR) && hasItemInInventory(cursor)) {
+            Inventory bundleInv = getBundleInventory(cursor);
+            if (bundleInv == null) return;
+            
+            ItemStack removed = removeLastItemFromBundle(bundleInv);
+            
+            if (removed != null) {
+                var clickedInventory = event.getClickedInventory();
+                int slot = event.getSlot();
+
+                if (clickedInventory != null) {
+                    clickedInventory.setItem(slot, removed);
+                } else {
+                    player.getInventory().addItem(removed);
+                }
+            } else {
+                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            }
+
+            saveBundleInventory(cursor, bundleInv);
+            updateBundle(cursor);
+            
+            if (event.getView().getType() == InventoryType.CREATIVE) {
+                Bukkit.getScheduler().runTaskLater(this, player::updateInventory, 1L);
+            }
+            return;
+        }
+
+        // UPDATED: Right-click removal when Bundle is in CURRENT slot (now places item in CURSOR)
         else if (event.getClick().isRightClick() && isOurBundle(current) && (cursor == null || cursor.getType() == Material.AIR) && hasItemInInventory(current)) {
             Inventory bundleInv = getBundleInventory(current);
             if (bundleInv == null) return;
             
-            ItemStack[] contents = bundleInv.getContents();
-            for (int i = contents.length - 1; i >= 0; i--) {
-                ItemStack slotItem = contents[i];
-                if (slotItem != null && slotItem.getType() != Material.AIR) {
-                    bundleInv.setItem(i, null);
-
-                    // Put removed item into cursor (this is the behavior you want)
-                    player.setItemOnCursor(slotItem.clone());
-
-                    saveBundleInventory(current, bundleInv);
-                    updateBundle(current);
-                    return;
-                }
-            }
-            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            ItemStack removed = removeLastItemFromBundle(bundleInv);
             
-            // Fix creative inventory
+            if (removed != null) {
+                player.setItemOnCursor(removed.clone());
+            } else {
+                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            }
+
+            saveBundleInventory(current, bundleInv);
+            updateBundle(current);
+            
             if (event.getView().getType() == InventoryType.CREATIVE) {
                 Bukkit.getScheduler().runTaskLater(this, () -> player.updateInventory(), 1L);
             }
             return;
         }
 
-        // RIGHT CLICK on empty slot: Remove last item (LIFO style)
-        else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR) && hasItemInInventory(cursor)) {
-            Inventory bundleInv = getBundleInventory(cursor);
-            if (bundleInv == null) return;
-            
-            ItemStack[] contents = bundleInv.getContents();
-            for (int i = contents.length - 1; i >= 0; i--) {
-                ItemStack slotItem = contents[i];
-                if (slotItem != null && slotItem.getType() != Material.AIR) {
-                    bundleInv.setItem(i, null);
-
-                    var clickedInventory = event.getClickedInventory();
-                    int slot = event.getSlot();
-
-                    if (clickedInventory != null) {
-                        clickedInventory.setItem(slot, slotItem);
-                    } else {
-                        player.getInventory().addItem(slotItem);
-                    }
-
-                    saveBundleInventory(cursor, bundleInv);
-                    updateBundle(cursor);
-                    return;
-                }
-            }
-            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
-            
-            // Fix creative inventory for being out of async
-            if (event.getView().getType() == InventoryType.CREATIVE) {
-                InventoryView inventory = player.getOpenInventory();
-                
-                inventory.setCursor(cursor);
-
-                Bukkit.getScheduler().runTaskLater(this, () -> {
-                    player.updateInventory();
-                }, 1L);
-            }
-        } 
-        
         else {
             event.setCancelled(false);
         }
