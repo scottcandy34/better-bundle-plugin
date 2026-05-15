@@ -33,6 +33,7 @@ import java.util.List;
 public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     private NamespacedKey bundleKey;
+    private NamespacedKey slotKey;
 
     private static final int MAX_WEIGHT = 64;
     private static final NamespacedKey RECIPE_KEY = new NamespacedKey("betterbundle", "bundle_recipe");
@@ -40,6 +41,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         bundleKey = new NamespacedKey(this, "is_bundle");
+        slotKey = new NamespacedKey(this, "is_slot");
 
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -52,6 +54,35 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         getLogger().info("BetterBundle disabled.");
+    }
+
+    public ItemStack createSlotItem(int amount) {
+        ItemStack item = new ItemStack(Material.BUNDLE, amount);
+        ItemMeta meta = item.getItemMeta();
+
+        if (meta != null) {
+            meta.setItemModel(NamespacedKey.minecraft("shulker_spawn_egg"));
+
+            meta.displayName(Component.text("Slot", NamedTextColor.WHITE)
+                .decoration(TextDecoration.ITALIC, false));
+
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text("Special slot item", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(slotKey, PersistentDataType.BYTE, (byte) 1);
+
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    public boolean isOurSlot(ItemStack item) {
+        if (item == null || item.getType() != Material.BUNDLE || !item.hasItemMeta()) return false;
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        return pdc.has(slotKey, PersistentDataType.BYTE);
     }
 
     private void registerBundleRecipe() {
