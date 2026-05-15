@@ -158,6 +158,19 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                type.name().contains("BARREL");
     }
 
+    private boolean hasItemInInventory(ItemStack bundle) {
+        Inventory inv = getBundleInventory(bundle);
+
+        if (inv == null) return false;
+
+        int currentWeight = calculateWeight(inv);
+        if (currentWeight > 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     private void updateBundleLore(ItemStack bundle) {
         Inventory inv = getBundleInventory(bundle);
         if (inv == null) return;
@@ -346,7 +359,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
 
         // RIGHT CLICK on empty slot: Remove last item (LIFO style)
-        else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR)) {
+        else if (event.getClick().isRightClick() && isOurBundle(cursor) && (current == null || current.getType() == Material.AIR) && hasItemInInventory(cursor)) {
             Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
             
