@@ -128,17 +128,16 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         Material type = item.getType();
         if (isBlockedItem(type)) return Integer.MAX_VALUE;
 
-        if (type.name().contains("SHULKER") || type.name().contains("CHEST") ||
-            type == Material.ENDER_CHEST || type == Material.BUNDLE ||
-            type.name().endsWith("_AXE") || type.name().endsWith("_PICKAXE") ||
-            type.name().endsWith("_SHOVEL") || type.name().endsWith("_HOE") ||
-            type.name().endsWith("_SWORD") || type == Material.BOW || type == Material.CROSSBOW ||
-            type.name().contains("HELMET") || type.name().contains("CHESTPLATE") ||
-            type.name().contains("LEGGINGS") || type.name().contains("BOOTS") ||
-            type == Material.ENDER_PEARL || type == Material.TOTEM_OF_UNDYING) {
-            return 4;
-        }
-        return 1;
+        int amount = item.getAmount();
+        int maxStack = item.getMaxStackSize();
+        return (amount * 64 + maxStack - 1) / maxStack;
+    }
+
+    private int getSingleItemWeight(Material type) {
+        if (isBlockedItem(type)) return Integer.MAX_VALUE;
+
+        int maxStack = new ItemStack(type).getMaxStackSize();
+        return (64 + maxStack - 1) / maxStack;   // 1 for 64-stack items, 4 for 16-stack, etc.
     }
 
     private boolean isBlockedItem(Material type) {
@@ -200,13 +199,20 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             if (meta instanceof Damageable damageable) {
                 damageable.resetDamage();
             }
-            // Do not set any Damageable values when empty
         } else {
-            // Filled bundle: unstackable + durability increases with weight
+            // Filled bundle: unstackable + durability bar ALWAYS visible
             meta.setMaxStackSize(1);
             if (meta instanceof Damageable damageable) {
-                damageable.setMaxDamage(MAX_WEIGHT);
-                damageable.setDamage(MAX_WEIGHT - weight); // exactly the weight (increases when adding items)
+                damageable.setMaxDamage(MAX_WEIGHT + 1);   // increased max damage (65)
+                
+                int damage = MAX_WEIGHT + 1 - weight;      // accurate count
+                
+                // Force the damage indicator to stay visible even when full
+                if (damage <= 0) {
+                    damage = 1;   // tiny visible damage when bundle is completely full
+                }
+                
+                damageable.setDamage(damage);
             }
         }
 
@@ -276,25 +282,22 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             Inventory bundleInv = getBundleInventory(current);
             if (bundleInv == null) return;
             
-            int itemWeight = getItemWeight(cursor);
+            int singleItemWeight = getSingleItemWeight(cursor.getType());
             int currentWeight = calculateWeight(bundleInv);
 
-            if (isBlockedItem(cursor.getType())) {
+            if (singleItemWeight == Integer.MAX_VALUE) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
-            if (currentWeight + itemWeight > MAX_WEIGHT) {
-                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
-                return;
-            }
+            int remainingWeight = MAX_WEIGHT - currentWeight;
+            int canAddItems = remainingWeight / singleItemWeight;
+            int canAdd = Math.min(cursor.getAmount(), canAddItems);
 
-            int canAdd = Math.min(cursor.getAmount(), (MAX_WEIGHT - currentWeight) / Math.max(1, itemWeight));
             if (canAdd > 0) {
                 ItemStack added = cursor.clone();
                 added.setAmount(canAdd);
 
-                // Add to first available slot in the real Shulker inventory
                 bundleInv.addItem(added);
 
                 cursor.setAmount(cursor.getAmount() - canAdd);
@@ -319,25 +322,22 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
             
-            int itemWeight = getItemWeight(current);
+            int singleItemWeight = getSingleItemWeight(current.getType());
             int currentWeight = calculateWeight(bundleInv);
 
-            if (isBlockedItem(current.getType())) {
+            if (singleItemWeight == Integer.MAX_VALUE) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
-            if (currentWeight + itemWeight > MAX_WEIGHT) {
-                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
-                return;
-            }
+            int remainingWeight = MAX_WEIGHT - currentWeight;
+            int canAddItems = remainingWeight / singleItemWeight;
+            int canAdd = Math.min(current.getAmount(), canAddItems);
 
-            int canAdd = Math.min(current.getAmount(), (MAX_WEIGHT - currentWeight) / Math.max(1, itemWeight));
             if (canAdd > 0) {
                 ItemStack added = current.clone();
                 added.setAmount(canAdd);
 
-                // Add to first available slot in the real Shulker inventory
                 bundleInv.addItem(added);
 
                 current.setAmount(current.getAmount() - canAdd);
