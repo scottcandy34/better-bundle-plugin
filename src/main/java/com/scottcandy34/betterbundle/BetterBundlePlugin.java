@@ -231,13 +231,23 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         if (item == null || item.getType() == Material.AIR) return 0;
         if (isBlockedItem(item)) return Integer.MAX_VALUE;
 
-        // Slot items get a fixed weight of 4 (like tools/armor)
-        if (isOurSlot(item)) return 4;
+        // Slot items now contribute the actual weight of their contents
+        if (isOurSlot(item)) {
+            if (item.getItemMeta() instanceof BundleMeta meta) {
+                int totalWeight = 0;
+                for (ItemStack content : meta.getItems()) {
+                    if (content != null && content.getType() != Material.AIR) {
+                        totalWeight += getItemWeight(content); // recursive for future-proofing
+                    }
+                }
+                return totalWeight;
+            }
+            return 0; // fallback
+        }
 
+        // Normal items: stack-percentage system (exactly as before)
         int amount = item.getAmount();
         int maxStack = item.getMaxStackSize();
-
-        // Correct percentage formula (full stack = 64 weight)
         return (amount * 64 + maxStack - 1) / maxStack;
     }
 
@@ -660,10 +670,10 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                         return;
                     }
                 }
-                cursor.setAmount(0);
-            } else {
-                cursor.setAmount(cursor.getAmount() - canAdd);
             }
+
+            // Always subtract only what actually fit (this fixes the deletion of leftovers)
+            cursor.setAmount(cursor.getAmount() - canAdd);
 
             saveBundleInventory(current, bundleInv);
             updateBundle(current);
@@ -675,7 +685,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // Second LEFT CLICK block (Bundle in cursor) – identical logic
+        // Second LEFT CLICK block (Bundle in cursor) – identical safe logic
         else if (event.getClick().isLeftClick() && isOurBundle(cursor) && current != null && current.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
@@ -711,10 +721,10 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                         return;
                     }
                 }
-                current.setAmount(0);
-            } else {
-                current.setAmount(current.getAmount() - canAdd);
             }
+
+            // Always subtract only what actually fit
+            current.setAmount(current.getAmount() - canAdd);
 
             saveBundleInventory(cursor, bundleInv);
             updateBundle(cursor);
