@@ -1,5 +1,5 @@
 name: BetterBundle
-version: ${version}
+version: 1.0.0
 main: com.scottcandy34.betterbundle.BetterBundlePlugin
 description: Recreates and enhances the Bundle item mechanics from the bundles_mod as a modern Paper plugin for 26.1.2. Custom bundle with configurable capacity, ignored items, and intuitive usage.
 author: scottcandy34
@@ -15,3 +15,10 @@ permissions:
   betterbundle.admin:
     description: "Admin commands for BetterBundle"
     default: op
+
+commands:
+  betterbundle:
+    description: BetterBundle admin commands
+    aliases: [bb]
+    permission: betterbundle.admin
+    usage: /betterbundle give <bundle|slot> [amount] [player]

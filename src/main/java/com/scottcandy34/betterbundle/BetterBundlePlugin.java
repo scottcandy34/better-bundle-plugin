@@ -4,6 +4,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -47,8 +50,77 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
         registerBundleRecipe();
 
+        getCommand("betterbundle").setExecutor(this);
+
         getLogger().info("BetterBundle plugin enabled for Paper 26.1.2! Recreated from bundles_mod.");
         getLogger().info("Craft a Bundle with 5 Rabbit Hide + 2 String (shaped recipe).");
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (!cmd.getName().equalsIgnoreCase("betterbundle")) return false;
+
+        if (!sender.hasPermission("betterbundle.admin")) {
+            sender.sendMessage(Component.text("You don't have permission to use this command.", NamedTextColor.RED));
+            return true;
+        }
+
+        if (args.length == 0 || !args[0].equalsIgnoreCase("give")) {
+            sender.sendMessage(Component.text("Usage: /betterbundle give <bundle|slot> [amount] [player]", NamedTextColor.GRAY));
+            return true;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage(Component.text("Usage: /betterbundle give <bundle|slot> [amount] [player]", NamedTextColor.GRAY));
+            return true;
+        }
+
+        String type = args[1].toLowerCase();
+        int amount = 1;
+        if (args.length >= 3) {
+            try {
+                amount = Integer.parseInt(args[2]);
+                if (amount < 1) amount = 1;
+            } catch (NumberFormatException e) {
+                sender.sendMessage(Component.text("Invalid amount!", NamedTextColor.RED));
+                return true;
+            }
+        }
+
+        Player target = null;
+        if (args.length >= 4) {
+            target = Bukkit.getPlayer(args[3]);
+            if (target == null) {
+                sender.sendMessage(Component.text("Player not found!", NamedTextColor.RED));
+                return true;
+            }
+        } else if (sender instanceof Player p) {
+            target = p;
+        } else {
+            sender.sendMessage(Component.text("You must specify a player when using console.", NamedTextColor.RED));
+            return true;
+        }
+
+        ItemStack item;
+        String itemName;
+        if (type.equals("bundle")) {
+            item = createBundleItem(amount);
+            itemName = "Bundle";
+        } else if (type.equals("slot")) {
+            item = createSlotItem(amount);
+            itemName = "Slot";
+        } else {
+            sender.sendMessage(Component.text("Unknown item type! Use 'bundle' or 'slot'.", NamedTextColor.RED));
+            return true;
+        }
+
+        target.getInventory().addItem(item);
+        target.sendMessage(Component.text("You received " + amount + "x " + itemName + "!", NamedTextColor.GREEN));
+        if (!target.equals(sender)) {
+            sender.sendMessage(Component.text("Gave " + amount + "x " + itemName + " to " + target.getName(), NamedTextColor.GREEN));
+        }
+
+        return true;
     }
 
     @Override
