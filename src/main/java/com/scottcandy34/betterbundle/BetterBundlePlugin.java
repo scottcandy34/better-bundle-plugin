@@ -383,7 +383,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
         
-        if (getUniqueItemCount(bundleInv.getItem(26)) == 0) {
+        ItemStack lastItem = bundleInv.getItem(26);
+        if (isOurSlot(lastItem) && getUniqueItemCount(lastItem) == 0) {
             repackBundle(bundleInv, -1);
         }
     }
@@ -514,7 +515,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     private ItemStack removeLastItemFromBundle(Inventory bundleInv) {
         if (bundleInv == null) return null;
 
-        // Check Slots from the end (LIFO across Slots)
+        // 1. Check Slots from the very end (LIFO across all Slots)
         for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
             ItemStack item = bundleInv.getItem(i);
             if (isOurSlot(item) && item.getItemMeta() instanceof BundleMeta meta) {
@@ -523,14 +524,21 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                     List<ItemStack> mutable = new ArrayList<>(contents);
                     ItemStack removed = mutable.remove(mutable.size() - 1);
 
+                    // Always update the Slot with the remaining items first
                     meta.setItems(mutable);
                     item.setItemMeta(meta);
+
+                    // If we just removed the second-to-last item (now exactly 1 left) → trigger repack
+                    if (mutable.size() == 1) {
+                        repackBundle(bundleInv, -1);
+                    }
+
                     return removed;
                 }
             }
         }
 
-        // Fallback to normal items
+        // 2. No Slots had items → normal LIFO on the main 27 slots
         for (int i = bundleInv.getSize() - 1; i >= 0; i--) {
             ItemStack item = bundleInv.getItem(i);
             if (item != null && item.getType() != Material.AIR) {
@@ -538,7 +546,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 return item;
             }
         }
-        return null;
+        return null; // Bundle is empty
     }
 
     @EventHandler
