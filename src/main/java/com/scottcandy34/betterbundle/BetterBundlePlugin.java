@@ -305,7 +305,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
     }
 
     private boolean addNewSlotToBundle(Inventory bundleInv, ItemStack toAdd) {
-        repackBundle(bundleInv);
+        repackBundle(bundleInv, 1);
 
         // After repack, make sure the overflowing item is placed into the newest Slot
         if (toAdd != null && toAdd.getType() != Material.AIR) {
@@ -315,7 +315,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         return true;
     }
 
-        private List<ItemStack> getItemsFromSlot(ItemStack slot) {
+    private List<ItemStack> getItemsFromSlot(ItemStack slot) {
         if (!isOurSlot(slot) || !(slot.getItemMeta() instanceof BundleMeta meta)) {
             return Collections.emptyList();
         }
@@ -363,13 +363,13 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private void repackBundle(Inventory bundleInv) {
+    private void repackBundle(Inventory bundleInv, int addition) {
         List<ItemStack> allItems = getAllItemsFromBundle(bundleInv);
         int currentSlotItems = countSlotItems(bundleInv);
 
         bundleInv.clear();
 
-        addSlotItemsAtEnd(bundleInv, currentSlotItems + 1);
+        addSlotItemsAtEnd(bundleInv, currentSlotItems + addition);
         
         for (ItemStack item : allItems) {
             HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(item);
