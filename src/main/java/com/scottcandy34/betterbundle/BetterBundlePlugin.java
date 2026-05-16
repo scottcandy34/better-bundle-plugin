@@ -600,6 +600,51 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         return extracted;
     }
 
+    /**
+     * Smartly adds as much as possible of the given item to the Bundle.
+     * Uses normal 27 slots first, then existing Slots (respecting 12-unique limit),
+     * then creates new Slots at the end if needed.
+     * 
+     * @return leftover ItemStack (with remaining amount) or null if everything was added
+     */
+    private ItemStack addItemToBundle(Inventory bundleInv, ItemStack toAdd) {
+        if (toAdd == null || toAdd.getType() == Material.AIR) return null;
+
+        int singleItemWeight = getSingleItemWeight(toAdd.getType());
+        int currentWeight = calculateWeight(bundleInv);
+        int remainingWeight = MAX_WEIGHT - currentWeight;
+
+        if (remainingWeight < singleItemWeight) {
+            return toAdd.clone(); // nothing fits
+        }
+
+        int canAdd = Math.min(toAdd.getAmount(), remainingWeight / singleItemWeight);
+
+        ItemStack portion = toAdd.clone();
+        portion.setAmount(canAdd);
+
+        // Try normal 27 slots first
+        HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(portion);
+
+        if (!leftovers.isEmpty()) {
+            ItemStack remaining = leftovers.values().iterator().next();
+
+            // Route to Slot system
+            if (!tryAddToExistingSlot(bundleInv, remaining)) {
+                addNewSlotToBundle(bundleInv, remaining);
+            }
+        }
+
+        // Return what didn't fit
+        if (canAdd >= toAdd.getAmount()) {
+            return null; // fully added
+        } else {
+            ItemStack leftover = toAdd.clone();
+            leftover.setAmount(toAdd.getAmount() - canAdd);
+            return leftover;
+        }
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (isOurBundle(event.getItemInHand())) {
@@ -781,48 +826,23 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        // First LEFT CLICK block (Bundle in current) – identical logic
+        // LEFT CLICK: Bundle in current slot
         else if (event.getClick().isLeftClick() && isOurBundle(current) && cursor != null && cursor.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(current);
             if (bundleInv == null) return;
-            
-            int singleItemWeight = getSingleItemWeight(cursor.getType());
-            int currentWeight = calculateWeight(bundleInv);
 
             if (isBlockedItem(cursor)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
-            int remainingWeight = MAX_WEIGHT - currentWeight;
-            if (remainingWeight < singleItemWeight) {
-                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
-                return;
+            ItemStack leftover = addItemToBundle(bundleInv, cursor);
+
+            if (leftover != null) {
+                cursor.setAmount(leftover.getAmount());
+            } else {
+                cursor.setAmount(0);
             }
-
-            int canAdd = Math.min(cursor.getAmount(), remainingWeight / singleItemWeight);
-
-            ItemStack toAdd = cursor.clone();
-            toAdd.setAmount(canAdd);
-
-            // Add to normal 27 slots first
-            java.util.HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
-
-            if (!leftovers.isEmpty()) {
-                ItemStack remaining = leftovers.values().iterator().next();
-
-                // Route leftovers to Slot system
-                if (!tryAddToExistingSlot(bundleInv, remaining)) {
-                    if (!addNewSlotToBundle(bundleInv, remaining)) {
-                        player.sendMessage(Component.text("Bundle is completely full!", NamedTextColor.RED));
-                        cursor.setAmount(remaining.getAmount());
-                        return;
-                    }
-                }
-            }
-
-            // Always subtract only what actually fit (this fixes the deletion of leftovers)
-            cursor.setAmount(cursor.getAmount() - canAdd);
 
             saveBundleInventory(current, bundleInv);
             updateBundle(current);
@@ -834,46 +854,23 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // Second LEFT CLICK block (Bundle in cursor) – identical safe logic
+        // LEFT CLICK: Bundle in cursor
         else if (event.getClick().isLeftClick() && isOurBundle(cursor) && current != null && current.getType() != Material.AIR) {
             Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
-            
-            int singleItemWeight = getSingleItemWeight(current.getType());
-            int currentWeight = calculateWeight(bundleInv);
 
             if (isBlockedItem(current)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 return;
             }
 
-            int remainingWeight = MAX_WEIGHT - currentWeight;
-            if (remainingWeight < singleItemWeight) {
-                player.sendMessage(Component.text("Not enough space! (" + currentWeight + "/" + MAX_WEIGHT + ")", NamedTextColor.RED));
-                return;
+            ItemStack leftover = addItemToBundle(bundleInv, current);
+
+            if (leftover != null) {
+                current.setAmount(leftover.getAmount());
+            } else {
+                current.setAmount(0);
             }
-
-            int canAdd = Math.min(current.getAmount(), remainingWeight / singleItemWeight);
-
-            ItemStack toAdd = current.clone();
-            toAdd.setAmount(canAdd);
-
-            HashMap<Integer, ItemStack> leftovers = bundleInv.addItem(toAdd);
-
-            if (!leftovers.isEmpty()) {
-                ItemStack remaining = leftovers.values().iterator().next();
-
-                if (!tryAddToExistingSlot(bundleInv, remaining)) {
-                    if (!addNewSlotToBundle(bundleInv, remaining)) {
-                        player.sendMessage(Component.text("Bundle is completely full!", NamedTextColor.RED));
-                        current.setAmount(remaining.getAmount());
-                        return;
-                    }
-                }
-            }
-
-            // Always subtract only what actually fit
-            current.setAmount(current.getAmount() - canAdd);
 
             saveBundleInventory(cursor, bundleInv);
             updateBundle(cursor);
