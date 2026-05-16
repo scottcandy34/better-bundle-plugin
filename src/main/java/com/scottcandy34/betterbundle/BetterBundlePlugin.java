@@ -2,6 +2,7 @@ package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.command.Command;
@@ -645,6 +646,13 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
     }
 
+    private void playBundleSound(Player player, String soundKey) {
+        if (player == null) return;
+
+        // Simple string overload – works reliably on Paper 26.1.2
+        player.playSound(player.getLocation(), soundKey, 0.8f, 1.0f);
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         if (isOurBundle(event.getItemInHand())) {
@@ -712,6 +720,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(Component.text("The Slot is empty.", NamedTextColor.GRAY));
             } else {
                 player.sendMessage(Component.text("Emptied " + extracted.size() + " item(s) from the end!", NamedTextColor.GRAY));
+                playBundleSound(player, "item.bundle.drop_contents");
             }
 
             if (event.getView().getType() == InventoryType.CREATIVE) {
@@ -815,6 +824,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             } else {
                 player.sendMessage(Component.text("Emptied " + extracted.size() + " item(s) from the end!", NamedTextColor.GRAY));
+                playBundleSound(player, "item.bundle.drop_contents");
             }
 
             if (event.getView().getType() == InventoryType.CREATIVE) {
@@ -838,6 +848,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
             if (isBlockedItem(cursor)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+                playBundleSound(player, "item.bundle.insert_fail");
                 return;
             }
 
@@ -847,6 +858,12 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 cursor.setAmount(leftover.getAmount());
             } else {
                 cursor.setAmount(0);
+            }
+
+            if (leftover != null && leftover.getAmount() == cursor.getAmount()) {
+                playBundleSound(player, "item.bundle.insert_fail");
+            } else {
+                playBundleSound(player, "item.bundle.insert");
             }
 
             saveBundleInventory(current, bundleInv);
@@ -866,6 +883,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
             if (isBlockedItem(current)) {
                 player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+                playBundleSound(player, "item.bundle.insert_fail");
                 return;
             }
 
@@ -875,6 +893,12 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 current.setAmount(leftover.getAmount());
             } else {
                 current.setAmount(0);
+            }
+
+            if (leftover != null && leftover.getAmount() == cursor.getAmount()) {
+                playBundleSound(player, "item.bundle.insert_fail");
+            } else {
+                playBundleSound(player, "item.bundle.insert");
             }
 
             saveBundleInventory(cursor, bundleInv);
@@ -902,6 +926,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 } else {
                     player.getInventory().addItem(removed);
                 }
+                playBundleSound(player, "item.bundle.remove_one");
             } else {
                 player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
@@ -924,6 +949,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             
             if (removed != null) {
                 player.setItemOnCursor(removed.clone());
+                playBundleSound(player, "item.bundle.remove_one");
             } else {
                 player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
