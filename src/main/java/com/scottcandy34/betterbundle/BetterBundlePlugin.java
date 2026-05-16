@@ -665,46 +665,55 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        if (event.getClick() == ClickType.SHIFT_RIGHT && isOurSlot(cursor)) {
+        else if (event.getClick() == ClickType.SHIFT_RIGHT && isOurSlot(cursor)) {
             event.setCancelled(true);
 
             if (!(cursor.getItemMeta() instanceof BundleMeta meta)) return;
 
-            // Get only valid items
-            java.util.List<ItemStack> validItems = new java.util.ArrayList<>();
-            for (ItemStack item : meta.getItems()) {
+            Inventory targetInv = (event.getClickedInventory() != null && event.getClickedInventory().getType() != InventoryType.PLAYER)
+                ? event.getClickedInventory()
+                : player.getInventory();
+
+            int emptySlots = getEmptySlotsInInventory(player, event);
+            if (emptySlots <= 0) {
+                player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
+                return;
+            }
+
+            // Extract last N items from the Slot (LIFO)
+            List<ItemStack> slotContents = new ArrayList<>(meta.getItems());
+            List<ItemStack> extracted = new ArrayList<>();
+
+            for (int i = slotContents.size() - 1; i >= 0 && extracted.size() < emptySlots; i--) {
+                ItemStack item = slotContents.get(i);
                 if (item != null && item.getType() != Material.AIR) {
-                    validItems.add(item.clone());
+                    extracted.add(item.clone());
+                    slotContents.remove(i);
                 }
             }
 
-            // Clear the Slot
-            meta.setItems(java.util.Collections.emptyList());
-            cursor.setItemMeta(meta);
+            if (!extracted.isEmpty()) {
+                HashMap<Integer, ItemStack> leftovers = targetInv.addItem(extracted.toArray(new ItemStack[0]));
 
-            // Add as much as possible to player's inventory
-            java.util.HashMap<Integer, ItemStack> leftovers = player.getInventory().addItem(
-                validItems.toArray(new ItemStack[0])
-            );
+                if (!leftovers.isEmpty()) {
+                    for (ItemStack leftover : leftovers.values()) {
+                        if (leftover != null && leftover.getType() != Material.AIR) {
+                            slotContents.add(leftover);
+                        }
+                    }
+                }
 
-            // Put any items that didn't fit back into the Slot
-            if (!leftovers.isEmpty()) {
-                java.util.List<ItemStack> toPutBack = new java.util.ArrayList<>(leftovers.values());
-                meta.setItems(toPutBack);
+                // Update the Slot
+                meta.setItems(slotContents);
                 cursor.setItemMeta(meta);
             }
 
-            // Refresh display (uses same update method as bundle since it only touches lore/durability for Slot)
-            updateBundle(cursor);
-
-            // Feedback
-            if (leftovers.isEmpty()) {
-                player.sendMessage(Component.text("Slot emptied into inventory!", NamedTextColor.GRAY));
+            if (extracted.isEmpty()) {
+                player.sendMessage(Component.text("The Slot is empty.", NamedTextColor.GRAY));
             } else {
-                player.sendMessage(Component.text("Slot partially emptied (inventory full)", NamedTextColor.YELLOW));
+                player.sendMessage(Component.text("Emptied " + extracted.size() + " item(s) from the end!", NamedTextColor.GRAY));
             }
 
-            // Fix creative inventory if needed
             if (event.getView().getType() == InventoryType.CREATIVE) {
                 Bukkit.getScheduler().runTaskLater(this, player::updateInventory, 1L);
             }
@@ -767,30 +776,26 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         }
 
         // Shift + Right Click on the Bundle
-        else if (event.getClick() == ClickType.SHIFT_RIGHT && (isOurBundle(cursor) || isOurSlot(cursor))) {
+        else if (event.getClick() == ClickType.SHIFT_RIGHT && isOurBundle(cursor)) {
             event.setCancelled(true);
 
-            ItemStack bundleItem = cursor;
-            Inventory bundleInv = getBundleInventory(bundleItem);
+            Inventory bundleInv = getBundleInventory(cursor);
             if (bundleInv == null) return;
+
+            Inventory targetInv = (event.getClickedInventory() != null && event.getClickedInventory().getType() != InventoryType.PLAYER)
+                ? event.getClickedInventory()
+                : player.getInventory();
 
             int emptySlots = getEmptySlotsInInventory(player, event);
             if (emptySlots <= 0) {
-                player.sendMessage(Component.text("No empty space available in this inventory!", NamedTextColor.RED));
+                player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
                 return;
             }
 
             List<ItemStack> extracted = extractLastItemsFromBundle(bundleInv, emptySlots);
 
-            if (extracted.isEmpty()) {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
-            } else {
-                // Add to the currently open inventory (chest) or player's inventory
-                Inventory target = event.getClickedInventory() != null && event.getClickedInventory().getType() != InventoryType.PLAYER 
-                    ? event.getClickedInventory() 
-                    : player.getInventory();
-
-                HashMap<Integer, ItemStack> leftovers = target.addItem(extracted.toArray(new ItemStack[0]));
+            if (!extracted.isEmpty()) {
+                HashMap<Integer, ItemStack> leftovers = targetInv.addItem(extracted.toArray(new ItemStack[0]));
 
                 if (!leftovers.isEmpty()) {
                     for (ItemStack leftover : leftovers.values()) {
@@ -803,8 +808,8 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
                 repackBundle(bundleInv, 0);
             }
 
-            saveBundleInventory(bundleItem, bundleInv);
-            updateBundle(bundleItem);
+            saveBundleInventory(cursor, bundleInv);
+            updateBundle(cursor);
 
             if (extracted.isEmpty()) {
                 player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
