@@ -377,8 +377,14 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             if (!leftovers.isEmpty()) {
                 ItemStack remaining = leftovers.values().iterator().next();
 
-                tryAddToExistingSlot(bundleInv, remaining);
+                if (!tryAddToExistingSlot(bundleInv, remaining)) {
+                    addNewSlotToBundle(bundleInv, remaining);
+                }
             }
+        }
+        
+        if (getUniqueItemCount(bundleInv.getItem(26)) == 0) {
+            repackBundle(bundleInv, -1);
         }
     }
 
