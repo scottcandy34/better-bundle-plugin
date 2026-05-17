@@ -2,11 +2,13 @@ package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.NamespacedKey;
+import org.bukkit.event.block.Action;
+import org.bukkit.block.Block;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,6 +17,8 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -35,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
@@ -659,6 +664,170 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             event.setCancelled(true);
             event.getPlayer().sendMessage(Component.text("You cannot place this Bundle as a block!", NamedTextColor.RED));
         }
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+
+        if (!isOurBundle(mainHand)) return;
+
+        event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+        }
+        event.setCancelled(true);
+
+        if (event.getAction() == Action.RIGHT_CLICK_AIR) {
+            // Air click is always safe
+            performBundleRemoval(player, mainHand);
+            return;
+        }
+
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+
+        // If this block opens a GUI or has any special right-click action → do nothing
+        if (GUI_OPENING_BLOCKS.contains(block.getType()) || NON_GUI_INTERACTIVE_BLOCKS.contains(block.getType())) {
+            event.setCancelled(false);
+            return;
+        }
+
+        performBundleRemoval(player, mainHand);
+    }
+
+    private static final Set<Material> GUI_OPENING_BLOCKS = Set.of(
+        // === FUNCTIONAL / WORKSTATION BLOCKS (no InventoryHolder) ===
+        Material.CRAFTING_TABLE,
+        Material.ANVIL, Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL,
+        Material.LOOM,
+        Material.SMITHING_TABLE,
+        Material.CARTOGRAPHY_TABLE,
+        Material.GRINDSTONE,
+        Material.STONECUTTER,
+        Material.ENCHANTING_TABLE,
+        Material.BEACON,
+        Material.LECTERN,
+        Material.CRAFTER,
+
+        // === CONTAINERS (implement InventoryHolder / Container) ===
+        Material.CHEST,
+        Material.TRAPPED_CHEST,
+        Material.BARREL,
+        Material.ENDER_CHEST,
+
+        Material.FURNACE,
+        Material.BLAST_FURNACE,
+        Material.SMOKER,
+
+        Material.BREWING_STAND,
+
+        Material.HOPPER,
+        Material.DISPENSER,
+        Material.DROPPER,
+
+        // === ALL 17 SHULKER BOXES ===
+        Material.SHULKER_BOX,
+        Material.WHITE_SHULKER_BOX,
+        Material.ORANGE_SHULKER_BOX,
+        Material.MAGENTA_SHULKER_BOX,
+        Material.LIGHT_BLUE_SHULKER_BOX,
+        Material.YELLOW_SHULKER_BOX,
+        Material.LIME_SHULKER_BOX,
+        Material.PINK_SHULKER_BOX,
+        Material.GRAY_SHULKER_BOX,
+        Material.LIGHT_GRAY_SHULKER_BOX,
+        Material.CYAN_SHULKER_BOX,
+        Material.PURPLE_SHULKER_BOX,
+        Material.BLUE_SHULKER_BOX,
+        Material.BROWN_SHULKER_BOX,
+        Material.GREEN_SHULKER_BOX,
+        Material.RED_SHULKER_BOX,
+        Material.BLACK_SHULKER_BOX
+    );
+    
+    private static final Set<Material> NON_GUI_INTERACTIVE_BLOCKS = Set.of(
+        // === DOORS (wooden + copper open by hand; iron only by redstone) ===
+        Material.OAK_DOOR, Material.SPRUCE_DOOR, Material.BIRCH_DOOR, Material.JUNGLE_DOOR,
+        Material.ACACIA_DOOR, Material.DARK_OAK_DOOR, Material.MANGROVE_DOOR, Material.CHERRY_DOOR,
+        Material.BAMBOO_DOOR, Material.CRIMSON_DOOR, Material.WARPED_DOOR,
+        Material.IRON_DOOR, Material.COPPER_DOOR, Material.EXPOSED_COPPER_DOOR,
+        Material.WEATHERED_COPPER_DOOR, Material.OXIDIZED_COPPER_DOOR,
+
+        // === TRAPDOORS (except iron) ===
+        Material.OAK_TRAPDOOR, Material.SPRUCE_TRAPDOOR, Material.BIRCH_TRAPDOOR, Material.JUNGLE_TRAPDOOR,
+        Material.ACACIA_TRAPDOOR, Material.DARK_OAK_TRAPDOOR, Material.MANGROVE_TRAPDOOR, Material.CHERRY_TRAPDOOR,
+        Material.BAMBOO_TRAPDOOR, Material.CRIMSON_TRAPDOOR, Material.WARPED_TRAPDOOR,
+        Material.COPPER_TRAPDOOR, Material.EXPOSED_COPPER_TRAPDOOR, Material.WEATHERED_COPPER_TRAPDOOR, Material.OXIDIZED_COPPER_TRAPDOOR,
+
+        // === FENCE GATES ===
+        Material.OAK_FENCE_GATE, Material.SPRUCE_FENCE_GATE, Material.BIRCH_FENCE_GATE, Material.JUNGLE_FENCE_GATE,
+        Material.ACACIA_FENCE_GATE, Material.DARK_OAK_FENCE_GATE, Material.MANGROVE_FENCE_GATE, Material.CHERRY_FENCE_GATE,
+        Material.BAMBOO_FENCE_GATE, Material.CRIMSON_FENCE_GATE, Material.WARPED_FENCE_GATE,
+
+        // === BUTTONS ===
+        Material.STONE_BUTTON, Material.POLISHED_BLACKSTONE_BUTTON,
+        Material.OAK_BUTTON, Material.SPRUCE_BUTTON, Material.BIRCH_BUTTON, Material.JUNGLE_BUTTON,
+        Material.ACACIA_BUTTON, Material.DARK_OAK_BUTTON, Material.MANGROVE_BUTTON, Material.CHERRY_BUTTON,
+        Material.BAMBOO_BUTTON, Material.CRIMSON_BUTTON, Material.WARPED_BUTTON,
+
+        // === REDSTONE & MECHANISMS ===
+        Material.LEVER,
+        Material.REPEATER,
+        Material.COMPARATOR,
+        Material.DAYLIGHT_DETECTOR,
+        Material.REDSTONE_WIRE,
+
+        // === USABLE BLOCKS ===
+        Material.BELL,
+        Material.NOTE_BLOCK,
+        Material.CAKE,
+        Material.ITEM_FRAME,
+        Material.GLOW_ITEM_FRAME,
+        Material.WHITE_BED, Material.ORANGE_BED, Material.MAGENTA_BED, Material.LIGHT_BLUE_BED,
+        Material.YELLOW_BED, Material.LIME_BED, Material.PINK_BED, Material.GRAY_BED,
+        Material.LIGHT_GRAY_BED, Material.CYAN_BED, Material.PURPLE_BED, Material.BLUE_BED,
+        Material.BROWN_BED, Material.GREEN_BED, Material.RED_BED, Material.BLACK_BED,
+
+        Material.DRAGON_EGG,
+        Material.RESPAWN_ANCHOR,
+        Material.SWEET_BERRY_BUSH,
+        Material.CHISELED_BOOKSHELF,
+        Material.DECORATED_POT,
+
+        // === ADMIN / CREATIVE BLOCKS ===
+        Material.COMMAND_BLOCK, Material.CHAIN_COMMAND_BLOCK, Material.REPEATING_COMMAND_BLOCK,
+        Material.STRUCTURE_BLOCK, Material.JIGSAW
+    );
+
+    private void performBundleRemoval(Player player, ItemStack mainHand) {
+        Inventory bundleInv = getBundleInventory(mainHand);
+        if (bundleInv == null) return;
+
+        ItemStack removed = removeLastItemFromBundle(bundleInv);
+
+        if (removed != null) {
+            // Drop exactly like pressing Q
+            Item dropped = player.getWorld().dropItemNaturally(
+                player.getEyeLocation().add(player.getLocation().getDirection().multiply(0.3)),
+                removed
+            );
+            dropped.setVelocity(player.getLocation().getDirection().multiply(0.3));
+
+            playBundleSound(player, "item.bundle.drop_contents");
+
+            // This is the key line: forces the visible right-click hand swing animation
+            player.swingMainHand();
+        } else {
+            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+        }
+
+        saveBundleInventory(mainHand, bundleInv);
+        updateBundle(mainHand);
     }
 
     @EventHandler
