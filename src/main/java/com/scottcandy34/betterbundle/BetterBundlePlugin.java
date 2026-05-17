@@ -192,6 +192,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
             shulker.customName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
             meta.setItemModel(NamespacedKey.minecraft("bundle"));
+            meta.setMaxStackSize(1);
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
@@ -477,7 +478,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
         bundle.setItemMeta(meta);
     }
 
-    private void updateBundleStackAndDurability(ItemStack bundle) {
+    private void updateBundleDurability(ItemStack bundle) {
         Inventory inv = getBundleInventory(bundle);
         if (inv == null) return;
 
@@ -489,13 +490,12 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
         if (isEmpty) {
             // Empty bundle: stackable + NO durability bar
-            meta.setMaxStackSize(16);
             if (meta instanceof Damageable damageable) {
+                damageable.setMaxDamage(MAX_WEIGHT + 1);
                 damageable.resetDamage();
             }
         } else {
             // Filled bundle: unstackable + durability bar ALWAYS visible
-            meta.setMaxStackSize(1);
             if (meta instanceof Damageable damageable) {
                 damageable.setMaxDamage(MAX_WEIGHT + 1);   // increased max damage (65)
                 
@@ -515,7 +515,7 @@ public class BetterBundlePlugin extends JavaPlugin implements Listener {
 
     private void updateBundle(ItemStack bundle) {
         updateBundleLore(bundle);
-        updateBundleStackAndDurability(bundle);
+        updateBundleDurability(bundle);
     }
 
     private boolean isOurInventoryView(InventoryView inventoryView) {
