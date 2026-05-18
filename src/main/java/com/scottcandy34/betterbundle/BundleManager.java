@@ -41,18 +41,27 @@ public class BundleManager {
     }
 
     public Inventory getBundleInventory(ItemStack bundle) {
-        if (!(bundle.getItemMeta() instanceof BlockStateMeta bsm)) return null;
+        ItemStack innerShulker = plugin.getItemFactory().getInnerShulker(bundle);
+        if (innerShulker == null) return null;
+
+        if (!(innerShulker.getItemMeta() instanceof BlockStateMeta bsm)) return null;
         if (!(bsm.getBlockState() instanceof ShulkerBox shulker)) return null;
         return shulker.getInventory();
     }
 
     public void saveBundleInventory(ItemStack bundle, Inventory inventory) {
-        if (!(bundle.getItemMeta() instanceof BlockStateMeta bsm)) return;
+        ItemStack innerShulker = plugin.getItemFactory().getInnerShulker(bundle);
+        if (innerShulker == null) return;
+
+        if (!(innerShulker.getItemMeta() instanceof BlockStateMeta bsm)) return;
         if (!(bsm.getBlockState() instanceof ShulkerBox shulker)) return;
 
         shulker.getInventory().setContents(inventory.getContents());
         bsm.setBlockState(shulker);
-        bundle.setItemMeta(bsm);
+        innerShulker.setItemMeta(bsm);
+
+        // Put the updated inner shulker back into the head
+        plugin.getItemFactory().setInnerShulker(bundle, innerShulker);
     }
 
     public int calculateWeight(Inventory inventory) {
