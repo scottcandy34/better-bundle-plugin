@@ -77,6 +77,9 @@ public class ItemFactory {
                 skullMeta.setPlayerProfile(profile);
             }
 
+            // Use original vanilla Bundle model (so it looks like a classic bundle in inventory/hotbar)
+            meta.setItemModel(NamespacedKey.minecraft("bundle"));
+
             meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
             meta.setMaxStackSize(1);
@@ -92,6 +95,8 @@ public class ItemFactory {
             }
 
             head.setItemMeta(meta);
+
+            // Initialize lore + durability on the head
             plugin.updateBundle(head);
         }
         return head;
