@@ -1,7 +1,7 @@
 package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
-import org.bukkit.NamespacedKey;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -14,21 +14,11 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public class BetterBundlePlugin extends JavaPlugin {
 
-    private NamespacedKey bundleKey;
-    private NamespacedKey slotKey;
-
-    private ItemFactory itemFactory;
-    private BundleManager bundleManager;
+    private final ItemFactory itemFactory = new ItemFactory();
 
     @Override
     public void onEnable() {
-        bundleKey = new NamespacedKey(this, "is_bundle");
-        slotKey = new NamespacedKey(this, "is_slot");
-
-        itemFactory = new ItemFactory(this, bundleKey, slotKey);
-        bundleManager = new BundleManager(this);
-
-        BundleListener listener = new BundleListener(this, itemFactory, bundleManager);
+        BundleListener listener = new BundleListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
 
         registerBundleRecipe();
@@ -45,6 +35,45 @@ public class BetterBundlePlugin extends JavaPlugin {
 
         if (!sender.hasPermission("betterbundle.admin")) {
             sender.sendMessage(Component.text("You don't have permission to use this command.", NamedTextColor.RED));
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("filltest")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(Component.text("This command can only be used by players.", NamedTextColor.RED));
+                return true;
+            }
+
+            // Create a fresh bundle
+            ItemStack bundle = itemFactory.createBundleItem(1);
+            BundleItem bundleItem = new BundleItem(bundle);
+            BundleInventory bundleInv = bundleItem.getInventory();
+
+            if (bundleInv == null) {
+                player.sendMessage(Component.text("Failed to create test bundle.", NamedTextColor.RED));
+                return true;
+            }
+
+            // Fill the first 27 slots with unique items (wool + concrete)
+            Material[] testItems = {
+                Material.WHITE_WOOL, Material.ORANGE_WOOL, Material.MAGENTA_WOOL, Material.LIGHT_BLUE_WOOL,
+                Material.YELLOW_WOOL, Material.LIME_WOOL, Material.PINK_WOOL, Material.GRAY_WOOL,
+                Material.LIGHT_GRAY_WOOL, Material.CYAN_WOOL, Material.PURPLE_WOOL, Material.BLUE_WOOL,
+                Material.BROWN_WOOL, Material.GREEN_WOOL, Material.RED_WOOL, Material.BLACK_WOOL,
+                Material.WHITE_CONCRETE, Material.ORANGE_CONCRETE, Material.MAGENTA_CONCRETE, Material.LIGHT_BLUE_CONCRETE,
+                Material.YELLOW_CONCRETE, Material.LIME_CONCRETE, Material.PINK_CONCRETE, Material.GRAY_CONCRETE,
+                Material.LIGHT_GRAY_CONCRETE, Material.CYAN_CONCRETE, Material.PURPLE_CONCRETE
+            };
+
+            for (Material mat : testItems) {
+                bundleInv.addItem(new ItemStack(mat, 1));
+            }
+
+            bundleItem.saveInventory(bundleInv);
+            bundleItem.update();
+
+            player.getInventory().addItem(bundle);
+            player.sendMessage(Component.text("Gave you a test bundle with 27 unique items.", NamedTextColor.GREEN));
             return true;
         }
 
@@ -90,7 +119,7 @@ public class BetterBundlePlugin extends JavaPlugin {
             item = itemFactory.createBundleItem(amount);
             itemName = "Bundle";
         } else if (type.equals("slot")) {
-            item = itemFactory.createSlotItem(amount);
+            item = itemFactory.createBundleSlotItem(amount);
             itemName = "Slot";
         } else {
             sender.sendMessage(Component.text("Unknown item type! Use 'bundle' or 'slot'.", NamedTextColor.RED));
@@ -120,21 +149,5 @@ public class BetterBundlePlugin extends JavaPlugin {
 
         Bukkit.addRecipe(recipe);
         getLogger().info("Registered custom Bundle crafting recipe.");
-    }
-
-    // === Getters for other classes ===
-    public ItemFactory getItemFactory() {
-        return itemFactory;
-    }
-
-    public BundleManager getBundleManager() {
-        return bundleManager;
-    }
-
-    // Used by ItemFactory
-    public void updateBundle(ItemStack bundle) {
-        if (bundleManager != null) {
-            bundleManager.updateBundle(bundle);
-        }
     }
 }

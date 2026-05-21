@@ -8,9 +8,21 @@ import org.bukkit.NamespacedKey;
 public class Constants {
     public static final int MAX_WEIGHT = 64;
     public static final NamespacedKey RECIPE_KEY = new NamespacedKey("betterbundle", "bundle_recipe");
+    public static final NamespacedKey SLOT_KEY = new NamespacedKey("betterbundle", "is_slot");
+    public static final NamespacedKey BUNDLE_KEY = new NamespacedKey("betterbundle", "is_bundle");
+    public static final NamespacedKey INNER_SHULKER_KEY = new NamespacedKey("betterbundle", "inner_shulker");
 
     public static final String BUNDLE_HEAD_TEXTURE = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvODZiZDkyMGI0MDI4MTVhZDg5MDE4ZGY4Mjk3N2JlOWY3ZWExOWU3OTllY2YwMTZmN2YwZGE0YWI0N2NhMjNjNSJ9fX0=";
 
+    public static final Set<Material> ORIGINAL_BUNDLES = Set.of(
+        Material.BUNDLE, Material.RED_BUNDLE, 
+        Material.BLUE_BUNDLE, Material.CYAN_BUNDLE,
+        Material.GRAY_BUNDLE, Material.LIME_BUNDLE, 
+        Material.PINK_BUNDLE, Material.BLACK_BUNDLE,
+        Material.BROWN_BUNDLE, Material.GREEN_BUNDLE, 
+        Material.WHITE_BUNDLE, Material.ORANGE_BUNDLE
+    );
+    
     public static final Set<Material> GUI_OPENING_BLOCKS = Set.of(
         // === FUNCTIONAL / WORKSTATION BLOCKS (no InventoryHolder) ===
         Material.CRAFTING_TABLE,

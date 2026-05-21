@@ -10,6 +10,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -23,20 +24,22 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public class ItemFactory {
-
-    private final NamespacedKey innerShulkerKey;
-    private final BetterBundlePlugin plugin;
-    private final NamespacedKey bundleKey;
-    private final NamespacedKey slotKey;
-
-    public ItemFactory(BetterBundlePlugin plugin, NamespacedKey bundleKey, NamespacedKey slotKey) {
-        this.plugin = plugin;
-        this.bundleKey = bundleKey;
-        this.slotKey = slotKey;
-        this.innerShulkerKey = new NamespacedKey(plugin, "inner_shulker");
+    
+    /**
+     * Checks if an item is blocked from being stored in a Bundle.
+     * Blocked items are containers like shulkers, chests, barrels, ender chests, and other bundles.
+     * Our own Slot items are explicitly allowed.
+     */
+    public boolean isBlockedItem(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return false;
+        if (isOurBundleSlot(item)) return false;
+        Material type = item.getType();
+        return type.name().contains("SHULKER") || type == Material.CHEST ||
+               type == Material.ENDER_CHEST || type == Material.BUNDLE ||
+               type.name().contains("BARREL");
     }
     
-    public ItemStack createSlotItem(int amount) {
+    public ItemStack createBundleSlotItem(int amount) {
         ItemStack item = new ItemStack(Material.BUNDLE, amount);
         ItemMeta meta = item.getItemMeta();
 
@@ -52,17 +55,17 @@ public class ItemFactory {
             meta.lore(lore);
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            pdc.set(slotKey, PersistentDataType.BYTE, (byte) 1);
+            pdc.set(Constants.SLOT_KEY, PersistentDataType.BYTE, (byte) 1);
 
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    public boolean isOurSlot(ItemStack item) {
+    public boolean isOurBundleSlot(ItemStack item) {
         if (item == null || item.getType() != Material.BUNDLE || !item.hasItemMeta()) return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        return pdc.has(slotKey, PersistentDataType.BYTE);
+        return pdc.has(Constants.SLOT_KEY, PersistentDataType.BYTE);
     }
 
     public ItemStack createBundleItem(int amount) {
@@ -85,21 +88,45 @@ public class ItemFactory {
             meta.setMaxStackSize(1);
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            pdc.set(bundleKey, PersistentDataType.BYTE, (byte) 1);
+            pdc.set(Constants.BUNDLE_KEY, PersistentDataType.BYTE, (byte) 1);
 
             // Create and store inner ShulkerBox
             ItemStack innerShulker = createInnerShulker();
-            byte[] serialized = serializeItemStack(innerShulker);
+            byte[] serialized = innerShulker.serializeAsBytes();
             if (serialized != null) {
-                pdc.set(innerShulkerKey, PersistentDataType.BYTE_ARRAY, serialized);
+                pdc.set(Constants.INNER_SHULKER_KEY, PersistentDataType.BYTE_ARRAY, serialized);
+            }
+
+
+            // Initialize lore + durability on the head
+            List<Component> lore = new ArrayList<>();
+
+            lore.add(Component.text("Can hold a mixed", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("stack of items", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, true));
+            lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Shift + Right-click to empty.", NamedTextColor.RED)
+                .decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+
+            if (meta instanceof Damageable damageable) {
+                damageable.setMaxDamage(Constants.MAX_WEIGHT + 1);
+                damageable.resetDamage();
             }
 
             head.setItemMeta(meta);
-
-            // Initialize lore + durability on the head
-            plugin.updateBundle(head);
         }
         return head;
+    }
+
+    public boolean isOurBundle(ItemStack item) {
+        if (item == null || item.getType() != Material.PLAYER_HEAD || !item.hasItemMeta()) return false;
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        return pdc.has(Constants.BUNDLE_KEY, PersistentDataType.BYTE);
     }
 
     /**
@@ -118,58 +145,9 @@ public class ItemFactory {
         return shulkerItem;
     }
 
-    /**
-     * Serializes an ItemStack into a byte array for storage in PDC.
-     */
-    private byte[] serializeItemStack(ItemStack item) {
-        if (item == null) return null;
-        return item.serializeAsBytes();
+    public boolean isOriginalBundle(ItemStack item) {
+        return Constants.ORIGINAL_BUNDLES.contains(item.getType());
     }
 
-    /**
-     * Deserializes a byte array back into an ItemStack.
-     */
-    private ItemStack deserializeItemStack(byte[] data) {
-        if (data == null) return null;
-        try {
-            return ItemStack.deserializeBytes(data);
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to deserialize inner shulker: " + e.getMessage());
-            return null;
-        }
-    }
 
-    /**
-     * Extracts the inner ShulkerBox from a Bundle head.
-     */
-    public ItemStack getInnerShulker(ItemStack bundleHead) {
-        if (!isOurBundle(bundleHead) || !bundleHead.hasItemMeta()) return null;
-
-        PersistentDataContainer pdc = bundleHead.getItemMeta().getPersistentDataContainer();
-        byte[] data = pdc.get(innerShulkerKey, PersistentDataType.BYTE_ARRAY);
-        return deserializeItemStack(data);
-    }
-
-    /**
-     * Stores an updated inner ShulkerBox back into the Bundle head.
-     */
-    public void setInnerShulker(ItemStack bundleHead, ItemStack innerShulker) {
-        if (!isOurBundle(bundleHead) || innerShulker == null || !bundleHead.hasItemMeta()) return;
-
-        ItemMeta meta = bundleHead.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        byte[] serialized = serializeItemStack(innerShulker);
-        if (serialized != null) {
-            pdc.set(innerShulkerKey, PersistentDataType.BYTE_ARRAY, serialized);
-            bundleHead.setItemMeta(meta);
-        }
-    }
-
-    
-
-    public boolean isOurBundle(ItemStack item) {
-        if (item == null || item.getType() != Material.PLAYER_HEAD || !item.hasItemMeta()) return false;
-        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        return pdc.has(bundleKey, PersistentDataType.BYTE);
-    }
 }
