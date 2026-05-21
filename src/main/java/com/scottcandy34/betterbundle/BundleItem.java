@@ -3,6 +3,7 @@ package com.scottcandy34.betterbundle;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bukkit.Bukkit;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -109,12 +110,12 @@ public class BundleItem {
      *
      * @param inventory The BundleInventory that was modified (usually from getInventory())
      */
-    public void saveInventory(BundleInventory inventory) {
-        if (inventory == null || innerShulker == null) {
+    public void saveInventory() {
+        if (bundleInventory == null || innerShulker == null) {
             return;
         }
 
-        Inventory liveInventory = inventory.getHandle();
+        Inventory liveInventory = bundleInventory.getHandle();
         if (liveInventory == null) {
             return;
         }
@@ -203,9 +204,7 @@ public class BundleItem {
     public void update() {
         updateLore();
         updateDurability();
-        if (bundleInventory != null) {
-            saveInventory(bundleInventory);
-        }
+        saveInventory();
     }
 
     /**
@@ -255,7 +254,10 @@ public class BundleItem {
 
     /**
      * Opens this Bundle's inventory GUI for the given player.
-     * Uses the inner ShulkerBox inventory wrapped by BundleInventory.
+     *
+     * Uses a temporary inventory backed by BundleInventoryHolder so that
+     * BundleListener can reliably identify which specific Bundle was opened
+     * and save changes back to the correct ItemStack on close.
      */
     public void open(Player player) {
         if (player == null) {
@@ -272,7 +274,17 @@ public class BundleItem {
             return;
         }
 
-        player.openInventory(handle);
+        // Create a fresh inventory view with our holder for proper tracking
+        Inventory view = Bukkit.createInventory(
+            new BundleInventoryHolder(this),
+            27,
+            Component.text("Bundle", NamedTextColor.GOLD)
+        );
+
+        // Copy current contents from the inner Shulker into the view
+        view.setContents(handle.getContents());
+
+        player.openInventory(view);
     }
 
     /**

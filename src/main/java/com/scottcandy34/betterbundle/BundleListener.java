@@ -13,6 +13,7 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import net.kyori.adventure.text.Component;
@@ -135,40 +136,23 @@ public class BundleListener implements Listener {
                 : event.getWhoClicked().getInventory();
     }
 
-    // When player closes the bundle GUI, refresh lore + durability bar on all bundles
+    /**
+     * When a player closes a Bundle inventory GUI, save the changes
+     * back to the specific BundleItem that was opened.
+     *
+     * Uses BundleInventoryHolder to identify the exact Bundle instead of
+     * scanning the player's inventory (which was unreliable when multiple
+     * Bundles were present).
+     */
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
 
-        if (!bundleManager.isOurInventoryView(event.getView())) {
-            return;
+        InventoryHolder holder = event.getInventory().getHolder();
+        if (!(holder instanceof BundleInventoryHolder bundleHolder)) {
+            return; // Not one of our Bundle inventories
         }
 
-        Inventory closedInv = event.getInventory();
-
-        // Save the edited GUI inventory into every Bundle the player is currently holding
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (item != null) {
-                try {
-                    BundleItem bundle = new BundleItem(item);
-                    bundle.saveInventory(new BundleInventory(closedInv));
-                    bundle.update();
-                } catch (IllegalArgumentException ignored) {
-                    // Not one of our Bundles
-                }
-            }
-        }
-
-        // Also handle the item on the cursor
-        ItemStack cursor = player.getItemOnCursor();
-        if (cursor != null) {
-            try {
-                BundleItem bundle = new BundleItem(cursor);
-                bundle.saveInventory(new BundleInventory(closedInv));
-                bundle.update();
-            } catch (IllegalArgumentException ignored) {
-                // Not one of our Bundles
-            }
-        }
+        bundleHolder.syncFromGuiInventory(event.getInventory());
     }
 }

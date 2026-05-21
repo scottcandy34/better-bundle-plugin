@@ -69,7 +69,7 @@ public class BetterBundlePlugin extends JavaPlugin {
                 bundleInv.addItem(new ItemStack(mat, 1));
             }
 
-            bundleItem.saveInventory(bundleInv);
+            bundleItem.getInventory().getHandle().setContents(bundleInv.getHandle().getContents());
             bundleItem.update();
 
             player.getInventory().addItem(bundle);
