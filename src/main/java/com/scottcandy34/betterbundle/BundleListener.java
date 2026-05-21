@@ -9,9 +9,11 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import net.kyori.adventure.text.Component;
@@ -20,15 +22,13 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public class BundleListener implements Listener {
 
     private final BetterBundlePlugin plugin;
-    private final ItemFactory itemFactory;
-    private final BundleManager bundleManager;
-    private final BundleClickHandler clickHandler;
+    private final ItemFactory itemFactory = new ItemFactory();
+    private final BundleManager bundleManager = new BundleManager();
+    private final BundleActions bundleActions = new BundleActions();
+    private final BundleClickConditions clickConditions = new BundleClickConditions();
 
-    public BundleListener(BetterBundlePlugin plugin, ItemFactory itemFactory, BundleManager bundleManager) {
+    public BundleListener(BetterBundlePlugin plugin) {
         this.plugin = plugin;
-        this.itemFactory = itemFactory;
-        this.bundleManager = bundleManager;
-        this.clickHandler = new BundleClickHandler(plugin, itemFactory, bundleManager);
     }
 
     @EventHandler
@@ -73,35 +73,86 @@ public class BundleListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        clickHandler.handle(event);
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getView().getType() == InventoryType.CREATIVE) return;
+
+        ItemStack cursor = event.getCursor();
+        ItemStack current = event.getCurrentItem();
+
+        // === SLOT HANDLING ===
+        // Slot insertion limit (12 unique items)
+        if (clickConditions.isAttemptingSlotInsertion(event)) {
+            event.setCancelled(true);
+            ItemStack slotItem = itemFactory.isOurBundleSlot(current) ? current : cursor;
+            ItemStack insertItem = itemFactory.isOurBundleSlot(current) ? cursor : current;
+            boolean isCancelled = bundleActions.handleSlotInsertion(player, slotItem, insertItem);
+            event.setCancelled(isCancelled);
+        }
+
+        // SHIFT_RIGHT on Slot (empty into inventory)
+        else if (clickConditions.isShiftRightClickToEmptySlot(event)) {
+            event.setCancelled(true);
+            Inventory targetInv = getTargetInventory(event);
+            bundleActions.handleEmptySlot(player, cursor, targetInv);
+        }
+
+        // === BUNDLE HANDLING ===
+        // SHIFT_LEFT → Open bundle
+        else if (clickConditions.isShiftLeftClickToOpen(event)) {
+            event.setCancelled(true);
+            bundleActions.handleOpenBundle(player, current);
+        }
+
+        // SHIFT_RIGHT on Bundle (empty into inventory)
+        else if (clickConditions.isShiftRightClickToEmptyBundle(event)) {
+            event.setCancelled(true);
+            Inventory targetInv = getTargetInventory(event);
+            bundleActions.handleEmptyBundle(player, cursor, targetInv);
+        }
+
+        // LEFT CLICK on Bundle (insert item)
+        else if (clickConditions.isLeftClickToInsert(event)) {
+            event.setCancelled(true);
+            ItemStack bundleItem = itemFactory.isOurBundle(current) ? current : cursor;
+            ItemStack insertItem = itemFactory.isOurBundle(current) ? cursor : current;
+            bundleActions.handleInsertItem(player, bundleItem, insertItem);
+        }
+
+        // RIGHT CLICK on Bundle (remove item)
+        else if (clickConditions.isRightClickToRemove(event)) {
+            event.setCancelled(true);
+            if (itemFactory.isOurBundle(cursor)) {
+                Inventory targetInv = getTargetInventory(event);
+                bundleActions.handleRemoveItem(player, cursor, targetInv, event.getSlot());
+            } else {
+                bundleActions.handleRemoveItem(player, current);
+            }
+        }
     }
 
-    // When player closes the bundle GUI, refresh lore + durability bar on all bundles
+    private Inventory getTargetInventory(InventoryClickEvent event) {
+        return (event.getClickedInventory() != null && event.getClickedInventory().getType() != InventoryType.PLAYER)
+                ? event.getClickedInventory()
+                : event.getWhoClicked().getInventory();
+    }
+
+    /**
+     * When a player closes a Bundle inventory GUI, save the changes
+     * back to the specific BundleItem that was opened.
+     *
+     * Uses BundleInventoryHolder to identify the exact Bundle instead of
+     * scanning the player's inventory (which was unreliable when multiple
+     * Bundles were present).
+     */
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
 
-        if (!bundleManager.isOurInventoryView(event.getView())) {
-            return;
+        InventoryHolder holder = event.getInventory().getHolder();
+        if (!(holder instanceof BundleInventoryHolder bundleHolder)) {
+            return; // Not one of our Bundle inventories
         }
 
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (itemFactory.isOurBundle(item)) {
-                Inventory inv = bundleManager.getBundleInventory(item);
-                if (inv != null) {
-                    bundleManager.saveBundleInventory(item, inv);
-                }
-                bundleManager.updateBundle(item);
-            }
-        }
-
-        ItemStack cursor = player.getItemOnCursor();
-        if (itemFactory.isOurBundle(cursor)) {
-            Inventory inv = bundleManager.getBundleInventory(cursor);
-            if (inv != null) {
-                bundleManager.saveBundleInventory(cursor, inv);
-            }
-            bundleManager.updateBundle(cursor);
-        }
+        bundleHolder.syncFromGuiInventory(event.getInventory());
     }
 }
