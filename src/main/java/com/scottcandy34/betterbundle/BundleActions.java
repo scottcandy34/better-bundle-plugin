@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import org.bukkit.Material;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -14,7 +16,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public class BundleActions {
 
     private final ItemFactory itemFactory = new ItemFactory();
-    private final BundleManager bundleManager = new BundleManager();
 
     public boolean handleSlotInsertion(Player player, ItemStack slotItem, ItemStack insertItem) {
         try {
@@ -37,7 +38,7 @@ public class BundleActions {
         try {
             BundleSlotInventory slotInv = new BundleSlotInventory(slotItem);
 
-            int emptySlots = bundleManager.getEmptySlotsInInventory(clickedInv);
+            int emptySlots = getEmptySlotsInInventory(clickedInv);
             if (emptySlots <= 0) {
                 player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
                 return;
@@ -86,7 +87,7 @@ public class BundleActions {
             BundleInventory bundleInv = bundle.getInventory();
             if (bundleInv == null) return;
 
-            int emptySlots = bundleManager.getEmptySlotsInInventory(targetInv);
+            int emptySlots = getEmptySlotsInInventory(targetInv);
             if (emptySlots <= 0) {
                 player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
                 return;
@@ -113,6 +114,69 @@ public class BundleActions {
         } catch (IllegalArgumentException e) {
             // Not one of our Bundles — ignore
         }
+    }
+
+    public void handleGuiItemInsertion(Player player, Inventory guiInventory, ItemStack insertItem) {
+        if (!(guiInventory.getHolder() instanceof BundleInventoryHolder holder)) return;
+        BundleItem bundleItem = holder.getBundleItem();
+        if (bundleItem == null) return;
+
+        BundleInventory bundleInv = bundleItem.getInventory();
+        if (bundleInv == null) return;
+
+        if (itemFactory.isBlockedItem(insertItem)) {
+            player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+            BundleSound.INSERT_FAIL.play(player);
+            return;
+        }
+
+        ItemStack leftover = bundleInv.addItem(insertItem);
+
+        if (leftover != null) {
+            insertItem.setAmount(leftover.getAmount());
+        } else {
+            insertItem.setAmount(0);
+        }
+
+        // Play appropriate sound
+        if (leftover != null && leftover.getAmount() == insertItem.getAmount()) {
+            BundleSound.INSERT_FAIL.play(player);
+        } else {
+            BundleSound.INSERT.play(player);
+        }
+
+        bundleItem.update();
+        guiInventory.setContents(bundleItem.getInventory().getHandle().getContents());
+    }
+
+    public void handleGuiSingleItemInsertion(Player player, Inventory guiInventory, ItemStack cursor) {
+        if (!(guiInventory.getHolder() instanceof BundleInventoryHolder holder)) return;
+        BundleItem bundleItem = holder.getBundleItem();
+        if (bundleItem == null) return;
+
+        BundleInventory bundleInv = bundleItem.getInventory();
+        if (bundleInv == null) return;
+
+        if (itemFactory.isBlockedItem(cursor)) {
+            player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
+            BundleSound.INSERT_FAIL.play(player);
+            return;
+        }
+
+        ItemStack single = cursor.clone();
+        single.setAmount(1);
+
+        ItemStack leftover = bundleInv.addItem(single);
+
+        if (leftover != null) {
+            cursor.setAmount(cursor.getAmount());
+        } else {
+            cursor.setAmount(cursor.getAmount() - 1);
+        }
+
+        bundleItem.update();
+        guiInventory.setContents(bundleItem.getInventory().getHandle().getContents());
+        BundleSound.INSERT.play(player);
     }
 
     public void handleInsertItem(Player player, ItemStack bundleItem, ItemStack insertItem) {
@@ -196,5 +260,44 @@ public class BundleActions {
         } catch (IllegalArgumentException e) {
             // Not one of our Bundles — ignore
         }
+    }
+
+    public void performBundleRemoval(Player player, ItemStack mainHand) {
+        try {
+            BundleItem bundle = new BundleItem(mainHand);
+            BundleInventory bundleInv = bundle.getInventory();
+            if (bundleInv == null) return;
+
+            ItemStack removed = bundleInv.removeItem();
+
+            if (removed != null) {
+                // Drop exactly like the player pressed Q (vanilla behavior)
+                Item dropped = player.getWorld().dropItemNaturally(
+                    player.getEyeLocation().add(player.getLocation().getDirection().multiply(0.3)), removed);
+                dropped.setVelocity(player.getLocation().getDirection().multiply(0.3));
+
+                BundleSound.DROP_CONTENTS.play(player);
+                player.swingMainHand();
+            } else {
+                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            }
+
+            bundle.update();
+
+        } catch (IllegalArgumentException e) {
+            // Not one of our Bundles — ignore
+        }
+    }
+
+    private int getEmptySlotsInInventory(Inventory inventory) {
+        if (inventory == null) return 0;
+
+        int empty = 0;
+        for (ItemStack item : inventory.getContents()) {
+            if (item == null || item.getType() == Material.AIR) {
+                empty++;
+            }
+        }
+        return empty;
     }
 }

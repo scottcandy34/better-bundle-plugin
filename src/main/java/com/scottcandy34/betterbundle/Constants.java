@@ -11,6 +11,7 @@ public class Constants {
     public static final NamespacedKey SLOT_KEY = new NamespacedKey("betterbundle", "is_slot");
     public static final NamespacedKey BUNDLE_KEY = new NamespacedKey("betterbundle", "is_bundle");
     public static final NamespacedKey INNER_SHULKER_KEY = new NamespacedKey("betterbundle", "inner_shulker");
+    public static final NamespacedKey BUNDLE_UUID_KEY = new NamespacedKey("betterbundle", "bundle_uuid");
 
     public static final String BUNDLE_HEAD_TEXTURE = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvODZiZDkyMGI0MDI4MTVhZDg5MDE4ZGY4Mjk3N2JlOWY3ZWExOWU3OTllY2YwMTZmN2YwZGE0YWI0N2NhMjNjNSJ9fX0=";
 

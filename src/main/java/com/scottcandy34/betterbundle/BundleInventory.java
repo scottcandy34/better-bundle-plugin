@@ -52,24 +52,67 @@ public class BundleInventory {
             return item.clone();
         }
 
+        // Calculate how much we can actually accept based on weight ===
+        int remainingWeight = MAX_WEIGHT - getWeight();
+        if (remainingWeight <= 0) {
+            return item.clone();
+        }
+
+        int maxStackSize = item.getMaxStackSize();
+        int weightPerItem = (64 + maxStackSize - 1) / maxStackSize;
+        int maxThatFits = remainingWeight / weightPerItem;
+
+        if (maxThatFits <= 0) {
+            return item.clone();
+        }
+
+        int amountToAdd = Math.min(item.getAmount(), maxThatFits);
+        if (amountToAdd <= 0) {
+            return item.clone();
+        }
+
+        // Create a limited copy with only what we can accept
+        ItemStack toAdd = item.clone();
+        toAdd.setAmount(amountToAdd);
+
         // 1. Try normal inventory slots first
-        HashMap<Integer, ItemStack> map = handle.addItem(item.clone());
+        HashMap<Integer, ItemStack> map = handle.addItem(toAdd);
         ItemStack remaining = map.isEmpty() ? null : map.values().iterator().next();
 
         if (remaining == null || remaining.getAmount() <= 0) {
+            // Everything we intended to add was accepted
+            if (amountToAdd < item.getAmount()) {
+                // Return the overflow
+                ItemStack overflow = item.clone();
+                overflow.setAmount(item.getAmount() - amountToAdd);
+                return overflow;
+            }
             return null;
         }
 
         // 2. Try existing BundleSlotInventory slots
         remaining = addToExistingSlots(remaining);
         if (remaining == null || remaining.getAmount() <= 0) {
+            if (amountToAdd < item.getAmount()) {
+                ItemStack overflow = item.clone();
+                overflow.setAmount(item.getAmount() - amountToAdd);
+                return overflow;
+            }
             return null;
         }
 
         // 3. Still had leftover → create a new slot and try again
         remaining = createSlotAndAdd(remaining);
-        if (remaining == null || remaining.getAmount() <= 0) {
-            return null;
+        
+        // Merge any original overflow with whatever is still remaining
+        if (amountToAdd < item.getAmount()) {
+            int originalOverflow = item.getAmount() - amountToAdd;
+            if (remaining == null) {
+                remaining = item.clone();
+                remaining.setAmount(originalOverflow);
+            } else {
+                remaining.setAmount(remaining.getAmount() + originalOverflow);
+            }
         }
 
         return remaining;
@@ -441,6 +484,19 @@ public class BundleInventory {
             List<ItemStack> remainingItems = prepareForRepack(-emptySlotCount);
             repack(remainingItems);
         }
+    }
+
+    /**
+     * Forces a full repack and cleanup of the Bundle's contents.
+     * This should be called after the player manually edits the inventory
+     * through the GUI.
+     *
+     * Uses prepareForRepack + repack so that Slot management and
+     * reorganization stays consistent with the rest of the system.
+     */
+    public void repackContents() {
+        List<ItemStack> currentItems = prepareForRepack(0);
+        repack(currentItems);
     }
 
     /**

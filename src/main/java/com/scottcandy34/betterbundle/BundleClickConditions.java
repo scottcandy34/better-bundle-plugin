@@ -3,6 +3,7 @@ package com.scottcandy34.betterbundle;
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 public class BundleClickConditions {
@@ -30,6 +31,33 @@ public class BundleClickConditions {
         }
 
         return false;
+    }
+
+    public boolean isRightClickInsertionFromCursorIntoBundleGui(InventoryClickEvent event) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof BundleInventoryHolder)) return false;
+        if (!event.getClick().isRightClick()) return false;
+        if (event.getCursor() == null || event.getCursor().getType() == Material.AIR) return false;
+        if (event.getClickedInventory() == null) return false;
+        return event.getClickedInventory().equals(event.getView().getTopInventory());
+    }
+
+    public boolean isShiftClickInsertionIntoBundleGui(InventoryClickEvent event) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof BundleInventoryHolder)) return false;
+        if (event.getClick() != ClickType.SHIFT_LEFT && event.getClick() != ClickType.SHIFT_RIGHT) return false;
+        if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return false;
+        if (event.getClickedInventory() == null) return false;
+        return !event.getClickedInventory().equals(event.getView().getTopInventory());
+    }
+
+    public boolean isLeftClickInsertionFromCursorIntoBundleGui(InventoryClickEvent event) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof BundleInventoryHolder)) return false;
+        if (!event.getClick().isLeftClick()) return false;
+        if (event.getCursor() == null || event.getCursor().getType() == Material.AIR) return false;
+        if (event.getClickedInventory() == null) return false;
+        return event.getClickedInventory().equals(event.getView().getTopInventory());
     }
 
     public boolean isShiftLeftClickToOpen(InventoryClickEvent event) {

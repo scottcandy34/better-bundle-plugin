@@ -1,9 +1,15 @@
 package com.scottcandy34.betterbundle;
 
+import java.util.UUID;
+
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
-
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Custom InventoryHolder implementation that ties an opened Bundle GUI
@@ -50,7 +56,7 @@ public class BundleInventoryHolder implements InventoryHolder {
      * back into this Bundle's internal inventory handle, then calls update()
      * so that lore, durability bar, and the PersistentDataContainer are refreshed.
      */
-    public void syncFromGuiInventory(Inventory guiInventory) {
+    public void syncFromGuiInventory(Player player, Inventory guiInventory) {
         if (bundleItem == null || guiInventory == null) {
             return;
         }
@@ -60,7 +66,33 @@ public class BundleInventoryHolder implements InventoryHolder {
             handle.setContents(guiInventory.getContents());
         }
 
-        // This triggers saveInventory(bundleInventory) + lore/durability refresh
+        bundleItem.repackAfterGuiClose();
         bundleItem.update();
+
+        if (player == null) {
+            return;
+        }
+
+        UUID targetId = bundleItem.getBundleId();
+        if (targetId == null) {
+            return;
+        }
+
+        ItemStack updated = bundleItem.getBundle();
+
+        // Safely update only the Bundle that matches this UUID
+        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+            ItemStack current = player.getInventory().getItem(slot);
+            if (current == null) continue;
+
+            try {
+                BundleItem existing = new BundleItem(current);
+                if (targetId.equals(existing.getBundleId())) {
+                    player.getInventory().setItem(slot, updated);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Not one of our bundles
+            }
+        }
     }
 }

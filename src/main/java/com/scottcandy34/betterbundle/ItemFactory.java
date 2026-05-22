@@ -90,6 +90,9 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(Constants.BUNDLE_KEY, PersistentDataType.BYTE, (byte) 1);
 
+            UUID bundleId = UUID.randomUUID();
+            pdc.set(Constants.BUNDLE_UUID_KEY, PersistentDataType.STRING, bundleId.toString());
+
             // Create and store inner ShulkerBox
             ItemStack innerShulker = createInnerShulker();
             byte[] serialized = innerShulker.serializeAsBytes();

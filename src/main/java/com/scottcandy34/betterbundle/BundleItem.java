@@ -2,6 +2,7 @@ package com.scottcandy34.betterbundle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.block.ShulkerBox;
@@ -198,6 +199,17 @@ public class BundleItem {
     }
 
     /**
+     * Should be called after the player closes this Bundle's GUI.
+     * Runs internal cleanup logic (pruning empty Slots, repacking, etc.)
+     * so the Bundle stays in a clean state.
+     */
+    public void repackAfterGuiClose() {
+        if (bundleInventory != null) {
+            bundleInventory.repackContents();
+        }
+    }
+
+    /**
      * Updates both the lore and durability bar on this Bundle item.
      * Call this after modifying the bundle's contents (e.g. after saveInventory).
      */
@@ -301,5 +313,21 @@ public class BundleItem {
 
         // Update lore + durability so the item reflects the empty state
         update();
+    }
+
+    /**
+     * Returns the unique ID assigned to this Bundle.
+     * Used for safely identifying which specific Bundle to update in the player's inventory.
+     */
+    public UUID getBundleId() {
+        if (!item.hasItemMeta()) return null;
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        String idString = pdc.get(Constants.BUNDLE_UUID_KEY, PersistentDataType.STRING);
+        if (idString == null) return null;
+        try {
+            return UUID.fromString(idString);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

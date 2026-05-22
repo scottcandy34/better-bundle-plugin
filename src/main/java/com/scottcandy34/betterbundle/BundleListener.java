@@ -1,5 +1,8 @@
 package com.scottcandy34.betterbundle;
 
+import java.util.UUID;
+
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -7,9 +10,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
@@ -23,7 +28,6 @@ public class BundleListener implements Listener {
 
     private final BetterBundlePlugin plugin;
     private final ItemFactory itemFactory = new ItemFactory();
-    private final BundleManager bundleManager = new BundleManager();
     private final BundleActions bundleActions = new BundleActions();
     private final BundleClickConditions clickConditions = new BundleClickConditions();
 
@@ -55,8 +59,15 @@ public class BundleListener implements Listener {
         }
         event.setCancelled(true);
 
+        // Shift + Right Click while holding Bundle → Open GUI
+        if (player.isSneaking()) {
+            bundleActions.handleOpenBundle(player, mainHand);
+            return;
+        }
+
+        // Normal Right Click → Remove last item
         if (event.getAction() == Action.RIGHT_CLICK_AIR) {
-            bundleManager.performBundleRemoval(player, mainHand);
+            bundleActions.performBundleRemoval(player, mainHand);
             return;
         }
 
@@ -68,7 +79,7 @@ public class BundleListener implements Listener {
             return;
         }
 
-        bundleManager.performBundleRemoval(player, mainHand);
+        bundleActions.performBundleRemoval(player, mainHand);
     }
 
     @EventHandler
@@ -79,6 +90,55 @@ public class BundleListener implements Listener {
         ItemStack cursor = event.getCursor();
         ItemStack current = event.getCurrentItem();
 
+        // === BUNDLE GUI PROTECTION (UUID matched) ===
+        // While THIS specific Bundle's GUI is open, fully block the player
+        // from moving, clicking, or interacting with that exact Bundle item.
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (topHolder instanceof BundleInventoryHolder openedHolder) {
+            UUID openedId = openedHolder.getBundleItem() != null ? openedHolder.getBundleItem().getBundleId() : null;
+
+            if (openedId != null) {
+                if (hasMatchingBundleUuid(current, openedId) || hasMatchingBundleUuid(cursor, openedId)) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+
+            // === PROTECT SLOT ITEMS INSIDE BUNDLE GUI ===
+            if (event.getClickedInventory() != null && event.getClickedInventory().equals(event.getView().getTopInventory())) {
+                
+                if (itemFactory.isOurBundleSlot(current) || itemFactory.isOurBundleSlot(cursor)) {
+                    boolean isLeftClickWithItemOnCursor = event.getClick().isLeftClick() && cursor != null && cursor.getType() != Material.AIR;
+
+                    // Allow right-click + left-click only when holding something on cursor
+                    // Block everything else (empty left-click, shift, etc.)
+                    if (!event.getClick().isRightClick() && !isLeftClickWithItemOnCursor) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // === BUNDLE INVENTORY GUI HANDLING ===
+        if (clickConditions.isShiftClickInsertionIntoBundleGui(event)) {
+            event.setCancelled(true);
+            bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), current);
+            return;
+        }
+
+        if (clickConditions.isLeftClickInsertionFromCursorIntoBundleGui(event)) {
+            event.setCancelled(true);
+            bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), cursor);
+            return;
+        }
+
+        if (clickConditions.isRightClickInsertionFromCursorIntoBundleGui(event)) {
+            event.setCancelled(true);
+            bundleActions.handleGuiSingleItemInsertion(player, event.getView().getTopInventory(), cursor);
+            return;
+        }
+
         // === SLOT HANDLING ===
         // Slot insertion limit (12 unique items)
         if (clickConditions.isAttemptingSlotInsertion(event)) {
@@ -87,39 +147,36 @@ public class BundleListener implements Listener {
             ItemStack insertItem = itemFactory.isOurBundleSlot(current) ? cursor : current;
             boolean isCancelled = bundleActions.handleSlotInsertion(player, slotItem, insertItem);
             event.setCancelled(isCancelled);
+            return;
         }
 
         // SHIFT_RIGHT on Slot (empty into inventory)
-        else if (clickConditions.isShiftRightClickToEmptySlot(event)) {
+        if (clickConditions.isShiftRightClickToEmptySlot(event)) {
             event.setCancelled(true);
             Inventory targetInv = getTargetInventory(event);
             bundleActions.handleEmptySlot(player, cursor, targetInv);
         }
 
         // === BUNDLE HANDLING ===
-        // SHIFT_LEFT → Open bundle
-        else if (clickConditions.isShiftLeftClickToOpen(event)) {
-            event.setCancelled(true);
-            bundleActions.handleOpenBundle(player, current);
-        }
-
         // SHIFT_RIGHT on Bundle (empty into inventory)
-        else if (clickConditions.isShiftRightClickToEmptyBundle(event)) {
+        if (clickConditions.isShiftRightClickToEmptyBundle(event)) {
             event.setCancelled(true);
             Inventory targetInv = getTargetInventory(event);
             bundleActions.handleEmptyBundle(player, cursor, targetInv);
+            return;
         }
 
         // LEFT CLICK on Bundle (insert item)
-        else if (clickConditions.isLeftClickToInsert(event)) {
+        if (clickConditions.isLeftClickToInsert(event)) {
             event.setCancelled(true);
             ItemStack bundleItem = itemFactory.isOurBundle(current) ? current : cursor;
             ItemStack insertItem = itemFactory.isOurBundle(current) ? cursor : current;
             bundleActions.handleInsertItem(player, bundleItem, insertItem);
+            return;
         }
 
         // RIGHT CLICK on Bundle (remove item)
-        else if (clickConditions.isRightClickToRemove(event)) {
+        if (clickConditions.isRightClickToRemove(event)) {
             event.setCancelled(true);
             if (itemFactory.isOurBundle(cursor)) {
                 Inventory targetInv = getTargetInventory(event);
@@ -127,6 +184,18 @@ public class BundleListener implements Listener {
             } else {
                 bundleActions.handleRemoveItem(player, current);
             }
+            return;
+        }
+    }
+
+    private boolean hasMatchingBundleUuid(ItemStack item, UUID targetId) {
+        if (item == null || !itemFactory.isOurBundle(item)) return false;
+
+        try {
+            BundleItem bundle = new BundleItem(item);
+            return targetId.equals(bundle.getBundleId());
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 
@@ -153,6 +222,16 @@ public class BundleListener implements Listener {
             return; // Not one of our Bundle inventories
         }
 
-        bundleHolder.syncFromGuiInventory(event.getInventory());
+        bundleHolder.syncFromGuiInventory(player, event.getInventory());
+    }
+
+    @EventHandler
+    public void onPrepareCraft(PrepareItemCraftEvent event) {
+        ItemStack result = event.getInventory().getResult();
+        if (result == null || !itemFactory.isOurBundle(result)) return;
+
+        // Replace with a fresh Bundle that has its own UUID
+        ItemStack fresh = itemFactory.createBundleItem(result.getAmount());
+        event.getInventory().setResult(fresh);
     }
 }
