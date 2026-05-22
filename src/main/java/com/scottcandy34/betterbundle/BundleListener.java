@@ -2,6 +2,7 @@ package com.scottcandy34.betterbundle;
 
 import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -185,6 +186,23 @@ public class BundleListener implements Listener {
                 bundleActions.handleRemoveItem(player, current);
             }
             return;
+        }
+
+        if (topHolder instanceof BundleInventoryHolder bundleHolder) {
+            BundleItem bundleItem = bundleHolder.getBundleItem();
+            if (bundleItem == null) return;
+
+            // Only schedule sync after removal-type clicks inside the Bundle GUI
+            ClickType click = event.getClick();
+            boolean isRemovalClick = click == ClickType.LEFT || click == ClickType.RIGHT || click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
+
+            if (isRemovalClick && event.getClickedInventory() != null && event.getClickedInventory().equals(event.getView().getTopInventory())) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    bundleHolder.syncFromGuiInventory(player, event.getView().getTopInventory());
+                    Inventory gui = event.getView().getTopInventory();
+                    gui.setContents(bundleItem.getInventory().getHandle().getContents());
+                });
+            }
         }
     }
 
