@@ -3,7 +3,6 @@ package com.scottcandy34.betterbundle;
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 public class BundleClickConditions {
@@ -33,9 +32,30 @@ public class BundleClickConditions {
         return false;
     }
 
-    public boolean isRightClickInsertionFromCursorIntoBundleGui(InventoryClickEvent event) {
-        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
-        if (!(topHolder instanceof BundleInventoryHolder)) return false;
+    public boolean isBlockedSlotInteractionInBundleGui(InventoryClickEvent event) {
+        if (event.getClickedInventory() == null || !event.getClickedInventory().equals(event.getView().getTopInventory())) return false;
+
+        ItemStack current = event.getCurrentItem();
+        ItemStack cursor = event.getCursor();
+
+        if (!itemFactory.isOurBundleSlot(current) && !itemFactory.isOurBundleSlot(cursor)) return false;
+
+        boolean isLeftClickWithItemOnCursor = event.getClick().isLeftClick() && cursor != null && cursor.getType() != Material.AIR;
+
+        // Block everything except right-click and left-click with item on cursor
+        return !event.getClick().isRightClick() && !isLeftClickWithItemOnCursor;
+    }
+
+    public boolean isRemovalClickInBundleGui(InventoryClickEvent event) {
+        ClickType click = event.getClick();
+        boolean isRemovalClick = click == ClickType.LEFT || click == ClickType.RIGHT || click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
+
+        if (!isRemovalClick) return false;
+        if (event.getClickedInventory() == null) return false;
+        return event.getClickedInventory().equals(event.getView().getTopInventory());
+    }
+
+    public boolean isRightClickInsertionIntoBundleGui(InventoryClickEvent event) {
         if (!event.getClick().isRightClick()) return false;
         if (event.getCursor() == null || event.getCursor().getType() == Material.AIR) return false;
         if (event.getClickedInventory() == null) return false;
@@ -43,17 +63,13 @@ public class BundleClickConditions {
     }
 
     public boolean isShiftClickInsertionIntoBundleGui(InventoryClickEvent event) {
-        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
-        if (!(topHolder instanceof BundleInventoryHolder)) return false;
         if (event.getClick() != ClickType.SHIFT_LEFT && event.getClick() != ClickType.SHIFT_RIGHT) return false;
         if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return false;
         if (event.getClickedInventory() == null) return false;
         return !event.getClickedInventory().equals(event.getView().getTopInventory());
     }
 
-    public boolean isLeftClickInsertionFromCursorIntoBundleGui(InventoryClickEvent event) {
-        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
-        if (!(topHolder instanceof BundleInventoryHolder)) return false;
+    public boolean isLeftClickInsertionIntoBundleGui(InventoryClickEvent event) {
         if (!event.getClick().isLeftClick()) return false;
         if (event.getCursor() == null || event.getCursor().getType() == Material.AIR) return false;
         if (event.getClickedInventory() == null) return false;

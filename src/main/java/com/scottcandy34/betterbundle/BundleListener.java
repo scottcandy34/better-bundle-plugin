@@ -106,38 +106,38 @@ public class BundleListener implements Listener {
             }
 
             // === PROTECT SLOT ITEMS INSIDE BUNDLE GUI ===
-            if (event.getClickedInventory() != null && event.getClickedInventory().equals(event.getView().getTopInventory())) {
-                
-                if (itemFactory.isOurBundleSlot(current) || itemFactory.isOurBundleSlot(cursor)) {
-                    boolean isLeftClickWithItemOnCursor = event.getClick().isLeftClick() && cursor != null && cursor.getType() != Material.AIR;
-
-                    // Allow right-click + left-click only when holding something on cursor
-                    // Block everything else (empty left-click, shift, etc.)
-                    if (!event.getClick().isRightClick() && !isLeftClickWithItemOnCursor) {
-                        event.setCancelled(true);
-                        return;
-                    }
-                }
+            if (clickConditions.isBlockedSlotInteractionInBundleGui(event)) {
+                event.setCancelled(true);
+                return;
             }
-        }
 
-        // === BUNDLE INVENTORY GUI HANDLING ===
-        if (clickConditions.isShiftClickInsertionIntoBundleGui(event)) {
-            event.setCancelled(true);
-            bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), current);
-            return;
-        }
+            // Only schedule sync after removal-type clicks inside the Bundle GUI
+            if (clickConditions.isRemovalClickInBundleGui(event)) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    openedHolder.syncFromGuiInventory(event.getView().getTopInventory());
+                    Inventory gui = event.getView().getTopInventory();
+                    gui.setContents(openedHolder.getBundleItem().getInventory().getHandle().getContents());
+                });
+            }
 
-        if (clickConditions.isLeftClickInsertionFromCursorIntoBundleGui(event)) {
-            event.setCancelled(true);
-            bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), cursor);
-            return;
-        }
+            // === BUNDLE INVENTORY GUI HANDLING ===
+            if (clickConditions.isShiftClickInsertionIntoBundleGui(event)) {
+                event.setCancelled(true);
+                bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), current);
+                return;
+            }
 
-        if (clickConditions.isRightClickInsertionFromCursorIntoBundleGui(event)) {
-            event.setCancelled(true);
-            bundleActions.handleGuiSingleItemInsertion(player, event.getView().getTopInventory(), cursor);
-            return;
+            if (clickConditions.isLeftClickInsertionIntoBundleGui(event)) {
+                event.setCancelled(true);
+                bundleActions.handleGuiItemInsertion(player, event.getView().getTopInventory(), cursor);
+                return;
+            }
+
+            if (clickConditions.isRightClickInsertionIntoBundleGui(event)) {
+                event.setCancelled(true);
+                bundleActions.handleGuiSingleItemInsertion(player, event.getView().getTopInventory(), cursor);
+                return;
+            }
         }
 
         // === SLOT HANDLING ===
@@ -156,6 +156,7 @@ public class BundleListener implements Listener {
             event.setCancelled(true);
             Inventory targetInv = getTargetInventory(event);
             bundleActions.handleEmptySlot(player, cursor, targetInv);
+            return;
         }
 
         // === BUNDLE HANDLING ===
@@ -186,23 +187,6 @@ public class BundleListener implements Listener {
                 bundleActions.handleRemoveItem(player, current);
             }
             return;
-        }
-
-        if (topHolder instanceof BundleInventoryHolder bundleHolder) {
-            BundleItem bundleItem = bundleHolder.getBundleItem();
-            if (bundleItem == null) return;
-
-            // Only schedule sync after removal-type clicks inside the Bundle GUI
-            ClickType click = event.getClick();
-            boolean isRemovalClick = click == ClickType.LEFT || click == ClickType.RIGHT || click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
-
-            if (isRemovalClick && event.getClickedInventory() != null && event.getClickedInventory().equals(event.getView().getTopInventory())) {
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    bundleHolder.syncFromGuiInventory(player, event.getView().getTopInventory());
-                    Inventory gui = event.getView().getTopInventory();
-                    gui.setContents(bundleItem.getInventory().getHandle().getContents());
-                });
-            }
         }
     }
 
@@ -240,7 +224,8 @@ public class BundleListener implements Listener {
             return; // Not one of our Bundle inventories
         }
 
-        bundleHolder.syncFromGuiInventory(player, event.getInventory());
+        bundleHolder.syncFromGuiInventory(event.getInventory());
+        bundleHolder.refreshPlayerInventory(player);
     }
 
     @EventHandler

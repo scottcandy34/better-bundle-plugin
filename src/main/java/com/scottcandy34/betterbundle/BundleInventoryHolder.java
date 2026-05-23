@@ -2,14 +2,12 @@ package com.scottcandy34.betterbundle;
 
 import java.util.UUID;
 
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Custom InventoryHolder implementation that ties an opened Bundle GUI
@@ -56,7 +54,7 @@ public class BundleInventoryHolder implements InventoryHolder {
      * back into this Bundle's internal inventory handle, then calls update()
      * so that lore, durability bar, and the PersistentDataContainer are refreshed.
      */
-    public void syncFromGuiInventory(Player player, Inventory guiInventory) {
+    public void syncFromGuiInventory(Inventory guiInventory) {
         if (bundleItem == null || guiInventory == null) {
             return;
         }
@@ -68,19 +66,23 @@ public class BundleInventoryHolder implements InventoryHolder {
 
         bundleItem.repackAfterGuiClose();
         bundleItem.update();
+    }
 
-        if (player == null) {
-            return;
-        }
+    /**
+     * Safely updates the player's inventory (hotbar + main inventory) and cursor
+     * with the latest version of this Bundle using UUID matching.
+     * Only the exact Bundle that matches this holder's UUID is updated.
+     * Prevents overwriting other Bundles the player may be holding.
+     */
+    public void refreshPlayerInventory(Player player) {
+        if (player == null || bundleItem == null) return;
 
         UUID targetId = bundleItem.getBundleId();
-        if (targetId == null) {
-            return;
-        }
+        if (targetId == null) return;
 
         ItemStack updated = bundleItem.getBundle();
 
-        // Safely update only the Bundle that matches this UUID
+        // Update main inventory + hotbar
         for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
             ItemStack current = player.getInventory().getItem(slot);
             if (current == null) continue;
@@ -88,11 +90,22 @@ public class BundleInventoryHolder implements InventoryHolder {
             try {
                 BundleItem existing = new BundleItem(current);
                 if (targetId.equals(existing.getBundleId())) {
-                    player.getInventory().setItem(slot, updated);
+                    player.getInventory().setItem(slot, updated.clone());
                 }
             } catch (IllegalArgumentException ignored) {
                 // Not one of our bundles
             }
+        }
+
+        // Also update cursor if it contains this Bundle
+        ItemStack cursor = player.getItemOnCursor();
+        if (cursor != null && cursor.getType() == Material.PLAYER_HEAD) {
+            try {
+                BundleItem cursorBundle = new BundleItem(cursor);
+                if (targetId.equals(cursorBundle.getBundleId())) {
+                    player.setItemOnCursor(updated.clone());
+                }
+            } catch (IllegalArgumentException ignored) {}
         }
     }
 }
