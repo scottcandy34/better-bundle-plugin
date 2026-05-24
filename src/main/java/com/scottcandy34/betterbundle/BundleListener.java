@@ -3,7 +3,6 @@ package com.scottcandy34.betterbundle;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -11,7 +10,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -96,23 +94,19 @@ public class BundleListener implements Listener {
         // from moving, clicking, or interacting with that exact Bundle item.
         InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
         if (topHolder instanceof BundleInventoryHolder openedHolder) {
-            UUID openedId = openedHolder.getBundleItem() != null ? openedHolder.getBundleItem().getBundleId() : null;
-
-            if (openedId != null) {
-                if (hasMatchingBundleUuid(current, openedId) || hasMatchingBundleUuid(cursor, openedId)) {
-                    event.setCancelled(true);
-                    return;
-                }
+            if (clickConditions.isInteractingWithOpenedBundle(event)) {
+                event.setCancelled(true);
+                return;
             }
 
             // === PROTECT SLOT ITEMS INSIDE BUNDLE GUI ===
-            if (clickConditions.isBlockedSlotInteractionInBundleGui(event)) {
+            if (clickConditions.isBlockedSlotInteractionInBundleGui(event) || clickConditions.isNumberKeyClick(event)) {
                 event.setCancelled(true);
                 return;
             }
 
             // Only schedule sync after removal-type clicks inside the Bundle GUI
-            if (clickConditions.isRemovalClickInBundleGui(event)) {
+            if (clickConditions.isRemovalClickInBundleGui(event) || clickConditions.isCursorDropClickInBundleGui(event)) {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     openedHolder.syncFromGuiInventory(event.getView().getTopInventory());
                     Inventory gui = event.getView().getTopInventory();

@@ -1,8 +1,11 @@
 package com.scottcandy34.betterbundle;
 
+import java.util.UUID;
+
 import org.bukkit.Material;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 public class BundleClickConditions {
@@ -30,6 +33,49 @@ public class BundleClickConditions {
         }
 
         return false;
+    }
+
+    public boolean isInteractingWithOpenedBundle(InventoryClickEvent event) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof BundleInventoryHolder openedHolder)) return false;
+
+        UUID openedId = openedHolder.getBundleItem() != null ? openedHolder.getBundleItem().getBundleId() : null;
+
+        if (openedId == null) return false;
+
+        ItemStack current = event.getCurrentItem();
+        ItemStack cursor = event.getCursor();
+
+        // Check current item in slot
+        if (current != null && itemFactory.isOurBundle(current)) {
+            try {
+                BundleItem bundle = new BundleItem(current);
+                if (openedId.equals(bundle.getBundleId())) return true;
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        // Check cursor
+        if (cursor != null && itemFactory.isOurBundle(cursor)) {
+            try {
+                BundleItem bundle = new BundleItem(cursor);
+                if (openedId.equals(bundle.getBundleId())) return true;
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        return false;
+    }
+
+    public boolean isCursorDropClickInBundleGui(InventoryClickEvent event) {
+        ClickType click = event.getClick();
+        if (click != ClickType.DROP && click != ClickType.CONTROL_DROP) return false;
+
+        // Must be dropping into the Bundle GUI itself
+        if (event.getClickedInventory() == null) return false;
+        return event.getClickedInventory().equals(event.getView().getTopInventory());
+    }
+
+    public boolean isNumberKeyClick(InventoryClickEvent event) {
+        return event.getClick() == ClickType.NUMBER_KEY;
     }
 
     public boolean isBlockedSlotInteractionInBundleGui(InventoryClickEvent event) {
