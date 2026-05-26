@@ -41,7 +41,6 @@ public class BundleActions {
 
             int emptySlots = getEmptySlotsInInventory(clickedInv);
             if (emptySlots <= 0) {
-                player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
                 return;
             }
 
@@ -58,10 +57,7 @@ public class BundleActions {
                 slotItem.setItemMeta(slotInv.getBundleSlot().getItemMeta());
             }
 
-            if (extracted.isEmpty()) {
-                player.sendMessage(Component.text("The Slot is empty.", NamedTextColor.GRAY));
-            } else {
-                player.sendMessage(Component.text("Emptied " + extracted.size() + " item(s) from the end!", NamedTextColor.GRAY));
+            if (!extracted.isEmpty()) {
                 BundleSound.DROP_CONTENTS.play(player);
             }
 
@@ -98,13 +94,11 @@ public class BundleActions {
 
         List<ItemStack> contents = meta.getItems();
         if (contents.isEmpty()) {
-            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             return;
         }
 
         int emptySlots = getEmptySlotsInInventory(targetInv);
         if (emptySlots <= 0) {
-            player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
             return;
         }
 
@@ -124,10 +118,7 @@ public class BundleActions {
         int moved = contents.size() - remaining.size();
 
         if (moved > 0) {
-            player.sendMessage(Component.text("Emptied " + moved + " item(s) from the bundle!", NamedTextColor.GRAY));
             BundleSound.DROP_CONTENTS.play(player);
-        } else {
-            player.sendMessage(Component.text("No space to empty the bundle.", NamedTextColor.RED));
         }
     }
 
@@ -139,7 +130,6 @@ public class BundleActions {
 
             int emptySlots = getEmptySlotsInInventory(targetInv);
             if (emptySlots <= 0) {
-                player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
                 return;
             }
 
@@ -154,10 +144,7 @@ public class BundleActions {
 
             bundle.update();
 
-            if (extracted.isEmpty()) {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
-            } else {
-                player.sendMessage(Component.text("Emptied " + extracted.size() + " item(s) from the end!", NamedTextColor.GRAY));
+            if (!extracted.isEmpty()) {
                 BundleSound.DROP_CONTENTS.play(player);
             }
 
@@ -175,7 +162,6 @@ public class BundleActions {
         if (bundleInv == null) return;
 
         if (itemFactory.isBlockedItem(insertItem)) {
-            player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
             BundleSound.INSERT_FAIL.play(player);
             return;
         }
@@ -210,7 +196,6 @@ public class BundleActions {
         if (bundleInv == null) return;
 
         if (itemFactory.isBlockedItem(cursor)) {
-            player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
             BundleSound.INSERT_FAIL.play(player);
             return;
         }
@@ -238,7 +223,6 @@ public class BundleActions {
             if (bundleInv == null) return;
 
             if (itemFactory.isBlockedItem(insertItem)) {
-                player.sendMessage(Component.text("This item cannot be stored in the Bundle.", NamedTextColor.RED));
                 BundleSound.INSERT_FAIL.play(player);
                 return;
             }
@@ -283,8 +267,6 @@ public class BundleActions {
                     player.getInventory().addItem(removed);
                 }
                 BundleSound.REMOVE_ONE.play(player);
-            } else {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
 
             bundle.update();
@@ -305,8 +287,6 @@ public class BundleActions {
             if (removed != null) {
                 player.setItemOnCursor(removed.clone());
                 BundleSound.REMOVE_ONE.play(player);
-            } else {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
 
             bundle.update();
@@ -331,9 +311,6 @@ public class BundleActions {
                 dropped.setVelocity(player.getLocation().getDirection().multiply(0.3));
 
                 BundleSound.DROP_CONTENTS.play(player);
-                player.swingMainHand();
-            } else {
-                player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
             }
 
             bundle.update();

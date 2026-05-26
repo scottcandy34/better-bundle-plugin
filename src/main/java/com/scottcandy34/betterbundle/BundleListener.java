@@ -18,9 +18,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-
 public class BundleListener implements Listener {
 
     private final BetterBundlePlugin plugin;
@@ -36,7 +33,6 @@ public class BundleListener implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         if (itemFactory.isOurBundle(event.getItemInHand())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(Component.text("You cannot place this Bundle as a block!", NamedTextColor.RED));
         }
     }
 
