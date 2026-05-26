@@ -22,7 +22,7 @@ public class BundleInventory {
     private final Inventory handle;
     private final ItemFactory itemFactory = new ItemFactory();
     
-    private static final int MAX_WEIGHT = 64;
+    private int maxWeight = Constants.DEFAULT_MAX_WEIGHT;
     private static final int MAX_INDIVIDUAL_STACK_COUNT = 27 * 12; // 324
     
 
@@ -55,7 +55,7 @@ public class BundleInventory {
         }
 
         // === Weight calculation (respects bundles) ===
-        int remainingWeight = MAX_WEIGHT - getWeight();
+        int remainingWeight = maxWeight - getWeight();
         if (remainingWeight <= 0) {
             return item.clone();
         }
@@ -76,7 +76,7 @@ public class BundleInventory {
         } else {
             // Normal items - original partial logic
             int maxStackSize = item.getMaxStackSize();
-            int weightPerItem = (64 + maxStackSize - 1) / maxStackSize;
+            int weightPerItem = (Constants.DEFAULT_MAX_WEIGHT + maxStackSize - 1) / maxStackSize;
             int maxThatFits = remainingWeight / weightPerItem;
 
             if (maxThatFits <= 0) {
@@ -302,23 +302,10 @@ public class BundleInventory {
             }
         }
 
-        // Our BundleSlot
-        if (itemFactory.isOurBundleSlot(item)) {
-            try {
-                BundleSlotInventory slotInv = new BundleSlotInventory(item);
-                if (slotInv.isEmpty()) return 4;
-                int w = 0;
-                for (ItemStack inner : slotInv.getContents()) w += getEffectiveWeight(inner);
-                return w;
-            } catch (Exception e) {
-                return 4;
-            }
-        }
-
         // Normal item
         int amount = item.getAmount();
         int maxStack = item.getMaxStackSize();
-        return (amount * 64 + maxStack - 1) / maxStack;
+        return (amount * Constants.DEFAULT_MAX_WEIGHT + maxStack - 1) / maxStack;
     }
 
     /**
@@ -370,7 +357,7 @@ public class BundleInventory {
      * Checks both weight limit (64) and maximum individual stack count (27 * 12).
      */
     public boolean isFull() {
-        if (getWeight() >= MAX_WEIGHT) {
+        if (getWeight() >= maxWeight) {
             return true;
         }
 
@@ -390,7 +377,7 @@ public class BundleInventory {
             return false;
         }
 
-        if (getWeight() >= MAX_WEIGHT) {
+        if (getWeight() >= maxWeight) {
             return false;
         }
 
@@ -401,7 +388,7 @@ public class BundleInventory {
         single.setAmount(1);
         int weightOfOne = getEffectiveWeight(single);
 
-        if (getWeight() + weightOfOne > MAX_WEIGHT) {
+        if (getWeight() + weightOfOne > maxWeight) {
             return false;
         }
 
@@ -420,6 +407,15 @@ public class BundleInventory {
         }
 
         return true;
+    }
+
+    /**
+     * Sets a custom max weight for this inventory (used when the value is stored on the bundle item).
+     */
+    public void setMaxWeight(int maxWeight) {
+        if (maxWeight > 0) {
+            this.maxWeight = maxWeight;
+        }
     }
 
     /**

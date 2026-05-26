@@ -22,6 +22,7 @@ import com.destroystokyo.paper.profile.ProfileProperty;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 public class ItemFactory {
     
@@ -86,6 +87,8 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(Constants.BUNDLE_KEY, PersistentDataType.BYTE, (byte) 1);
 
+            pdc.set(Constants.BUNDLE_MAX_WEIGHT_KEY, PersistentDataType.INTEGER, Constants.DEFAULT_MAX_WEIGHT);
+
             UUID bundleId = UUID.randomUUID();
             pdc.set(Constants.BUNDLE_UUID_KEY, PersistentDataType.STRING, bundleId.toString());
 
@@ -104,16 +107,15 @@ public class ItemFactory {
                 .decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text("stack of items", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
+            lore.add(MiniMessage.miniMessage().deserialize("<dark_gray>░".repeat(16)));
             lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, true));
-            lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
                 .decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text("Shift + Right-click to empty.", NamedTextColor.RED)
                 .decoration(TextDecoration.ITALIC, false));
             meta.lore(lore);
 
             if (meta instanceof Damageable damageable) {
-                damageable.setMaxDamage(Constants.MAX_WEIGHT + 1);
+                damageable.setMaxDamage(Constants.DEFAULT_MAX_WEIGHT + 1);
                 damageable.resetDamage();
             }
 

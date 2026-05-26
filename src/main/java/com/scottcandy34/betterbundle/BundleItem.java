@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -18,6 +19,7 @@ import org.bukkit.persistence.PersistentDataType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 public class BundleItem {
 
@@ -99,6 +101,9 @@ public class BundleItem {
      * This gives access to addItem, removeItem, repack, weight, etc.
      */
     public BundleInventory getInventory() {
+        if (bundleInventory != null) {
+            bundleInventory.setMaxWeight(getMaxWeight());
+        }
         return bundleInventory;
     }
 
@@ -149,16 +154,40 @@ public class BundleItem {
 
         List<Component> lore = new ArrayList<>();
 
+        // === Show last 4 items (most recently added) at the top of the lore ===
+        if (!isEmpty && inv != null) {
+            List<ItemStack> contents = inv.getContents();
+            int start = Math.max(0, contents.size() - 4);
+            List<ItemStack> recentItems = contents.subList(start, contents.size());
+
+            // Loop backwards so the newest item is added to lore first (appears at top)
+            for (int i = recentItems.size() - 1; i >= 0; i--) {
+                ItemStack recent = recentItems.get(i);
+                if (recent == null || recent.getType() == Material.AIR) continue;
+
+                String itemName = recent.getType().name().toLowerCase().replace('_', ' ');
+                String line = itemName + " x" + recent.getAmount();
+
+                lore.add(Component.text(line, NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, true));
+            }
+        }
+
         if (isEmpty) {
-            lore.add(Component.text("Can hold a mixed", NamedTextColor.GRAY)
+            int stackCount = Math.max(1, getMaxWeight() / Constants.DEFAULT_MAX_WEIGHT);
+            String stacksWord = (stackCount == 1) ? "stack" : "stacks";
+
+            lore.add(Component.text("Can hold " + stackCount + " mixed", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("stack of items", NamedTextColor.GRAY)
+            lore.add(Component.text(stacksWord + " of items", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
         }
 
+        // === Weight Progress Bar (always visible, even when empty) ===
+        int currentWeight = (inv != null) ? inv.getWeight() : 0;
+        lore.add(createWeightBar(currentWeight, getMaxWeight()));
+
         lore.add(Component.text("Reinforced with copper.", NamedTextColor.GRAY)
-            .decoration(TextDecoration.ITALIC, true));
-        lore.add(Component.text("Shift + Left-click to open.", NamedTextColor.RED)
             .decoration(TextDecoration.ITALIC, false));
         lore.add(Component.text("Shift + Right-click to empty.", NamedTextColor.RED)
             .decoration(TextDecoration.ITALIC, false));
@@ -185,12 +214,12 @@ public class BundleItem {
         ItemMeta meta = item.getItemMeta();
         if (!(meta instanceof Damageable damageable)) return;
 
-        damageable.setMaxDamage(Constants.MAX_WEIGHT + 1);
+        damageable.setMaxDamage(getMaxWeight() + 1);
 
         if (isEmpty) {
             damageable.resetDamage();
         } else {
-            int damage = Constants.MAX_WEIGHT + 1 - weight;
+            int damage = getMaxWeight() + 1 - weight;
             if (damage <= 0) damage = 1;
             damageable.setDamage(damage);
         }
@@ -205,7 +234,7 @@ public class BundleItem {
      */
     public void repackAfterGuiClose() {
         if (bundleInventory != null) {
-            bundleInventory.repackContents();
+            getInventory().repackContents();
         }
     }
 
@@ -229,6 +258,40 @@ public class BundleItem {
             return 0;
         }
         return inv.getWeight();
+    }
+
+    /**
+     * Returns the maximum weight capacity of this Bundle.
+     * This value is stored on the item itself for easy customization.
+     */
+    public int getMaxWeight() {
+        if (this.item == null || !this.item.hasItemMeta()) {
+            return Constants.DEFAULT_MAX_WEIGHT;
+        }
+        PersistentDataContainer pdc = this.item.getItemMeta().getPersistentDataContainer();
+        Integer weight = pdc.get(Constants.BUNDLE_MAX_WEIGHT_KEY, PersistentDataType.INTEGER);
+        return weight != null ? weight : Constants.DEFAULT_MAX_WEIGHT;
+    }
+
+    /**
+     * Sets a new maximum weight capacity for this Bundle.
+     */
+    public void setMaxWeight(int maxWeight) {
+        if (this.item == null || !this.item.hasItemMeta()) return;
+        
+        if (maxWeight % 64 != 0) {
+            throw new IllegalArgumentException("Max weight must be a multiple of 64");
+        }
+
+        ItemMeta meta = this.item.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        pdc.set(Constants.BUNDLE_MAX_WEIGHT_KEY, PersistentDataType.INTEGER, maxWeight);
+        this.item.setItemMeta(meta);
+
+        // Keep the live BundleInventory in sync
+        if (bundleInventory != null) {
+            bundleInventory.setMaxWeight(maxWeight);
+        }
     }
 
     /**
@@ -262,6 +325,33 @@ public class BundleItem {
     public ItemStack getBundle() {
         update();
         return item.clone();
+    }
+
+    /**
+     * Creates a visual weight progress bar using square characters.
+     * Built with Adventure Components for better styling control.
+     * Blue when not full, Red when completely full.
+     */
+    private Component createWeightBar(int current, int max) {
+        int barLength = 16;
+        double ratio = max > 0 ? Math.min(1.0, (double) current / max) : 0;
+        int filled = (int) Math.round(barLength * ratio);
+
+        // Guarantee at least one blue █ if the bundle has any weight
+        if (current > 0 && filled == 0) {
+            filled = 1;
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        // Filled part
+        String filledChar = (current >= max) ? "<red>█</red>" : "<blue>█</blue>";
+        sb.append(filledChar.repeat(filled));
+
+        // Empty part
+        sb.append("<dark_gray>░</dark_gray>".repeat(barLength - filled));
+
+        return MiniMessage.miniMessage().deserialize(sb.toString());
     }
 
     /**

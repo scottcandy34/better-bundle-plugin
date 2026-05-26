@@ -6,8 +6,9 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 
 public class Constants {
-    public static final int MAX_WEIGHT = 64;
+    public static final int DEFAULT_MAX_WEIGHT = 64;
     public static final NamespacedKey RECIPE_KEY = new NamespacedKey("betterbundle", "bundle_recipe");
+    public static final NamespacedKey BUNDLE_MAX_WEIGHT_KEY = new NamespacedKey("betterbundle", "max_weight");
     public static final NamespacedKey SLOT_KEY = new NamespacedKey("betterbundle", "is_slot");
     public static final NamespacedKey BUNDLE_KEY = new NamespacedKey("betterbundle", "is_bundle");
     public static final NamespacedKey INNER_SHULKER_KEY = new NamespacedKey("betterbundle", "inner_shulker");
