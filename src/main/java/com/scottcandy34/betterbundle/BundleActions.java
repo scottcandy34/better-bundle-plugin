@@ -9,6 +9,7 @@ import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BundleMeta;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -81,6 +82,55 @@ public class BundleActions {
         }
     }
 
+    /**
+     * Empties all items from a vanilla (original) Minecraft bundle into the target inventory.
+     * This gives vanilla bundles the same Shift + Right-click "empty all" behavior
+     * as our custom BundleSlot and Bundle items.
+     */
+    public void handleEmptyVanillaBundle(Player player, ItemStack vanillaBundle, Inventory targetInv) {
+        if (vanillaBundle == null || !itemFactory.isOriginalBundle(vanillaBundle) || !vanillaBundle.hasItemMeta()) {
+            return;
+        }
+
+        if (!(vanillaBundle.getItemMeta() instanceof BundleMeta meta)) {
+            return;
+        }
+
+        List<ItemStack> contents = meta.getItems();
+        if (contents.isEmpty()) {
+            player.sendMessage(Component.text("The Bundle is empty.", NamedTextColor.GRAY));
+            return;
+        }
+
+        int emptySlots = getEmptySlotsInInventory(targetInv);
+        if (emptySlots <= 0) {
+            player.sendMessage(Component.text("No empty space available!", NamedTextColor.RED));
+            return;
+        }
+
+        // Try to add as many as possible to the target inventory
+        HashMap<Integer, ItemStack> leftovers = targetInv.addItem(contents.toArray(new ItemStack[0]));
+
+        // Keep only the items that didn't fit
+        List<ItemStack> remaining = new ArrayList<>();
+        if (!leftovers.isEmpty()) {
+            remaining.addAll(leftovers.values());
+        }
+
+        // Update the vanilla bundle with whatever is left
+        meta.setItems(remaining);
+        vanillaBundle.setItemMeta(meta);
+
+        int moved = contents.size() - remaining.size();
+
+        if (moved > 0) {
+            player.sendMessage(Component.text("Emptied " + moved + " item(s) from the bundle!", NamedTextColor.GRAY));
+            BundleSound.DROP_CONTENTS.play(player);
+        } else {
+            player.sendMessage(Component.text("No space to empty the bundle.", NamedTextColor.RED));
+        }
+    }
+
     public void handleEmptyBundle(Player player, ItemStack bundleItem, Inventory targetInv) {
         try {
             BundleItem bundle = new BundleItem(bundleItem);
@@ -130,6 +180,8 @@ public class BundleActions {
             return;
         }
 
+        int originalAmount = insertItem.getAmount();
+
         ItemStack leftover = bundleInv.addItem(insertItem);
 
         if (leftover != null) {
@@ -139,7 +191,7 @@ public class BundleActions {
         }
 
         // Play appropriate sound
-        if (leftover != null && leftover.getAmount() == insertItem.getAmount()) {
+        if (leftover != null && leftover.getAmount() == originalAmount) {
             BundleSound.INSERT_FAIL.play(player);
         } else {
             BundleSound.INSERT.play(player);
@@ -191,6 +243,8 @@ public class BundleActions {
                 return;
             }
 
+            int originalAmount = insertItem.getAmount();
+
             ItemStack leftover = bundleInv.addItem(insertItem);
 
             // Update cursor amount (Minecraft behavior)
@@ -201,7 +255,7 @@ public class BundleActions {
             }
 
             // Play appropriate sound
-            if (leftover != null && leftover.getAmount() == insertItem.getAmount()) {
+            if (leftover != null && leftover.getAmount() == originalAmount) {
                 BundleSound.INSERT_FAIL.play(player);
             } else {
                 BundleSound.INSERT.play(player);

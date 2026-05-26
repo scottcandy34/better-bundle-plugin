@@ -134,6 +134,10 @@ public class BundleClickConditions {
         return event.getClick() == ClickType.SHIFT_RIGHT && itemFactory.isOurBundle(event.getCursor());
     }
 
+    public boolean isShiftRightClickToEmptyVanillaBundle(InventoryClickEvent event) {
+        return event.getClick() == ClickType.SHIFT_RIGHT && itemFactory.isOriginalBundle(event.getCursor());
+    }
+
     public boolean isLeftClickToInsert(InventoryClickEvent event) {
         if (!event.getClick().isLeftClick()) return false;
 

@@ -7,6 +7,8 @@ import java.util.List;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 /**
  * Represents the main inventory of a Bundle (the 27-slot container).
@@ -52,28 +54,43 @@ public class BundleInventory {
             return item.clone();
         }
 
-        // Calculate how much we can actually accept based on weight ===
+        // === Weight calculation (respects bundles) ===
         int remainingWeight = MAX_WEIGHT - getWeight();
         if (remainingWeight <= 0) {
             return item.clone();
         }
 
-        int maxStackSize = item.getMaxStackSize();
-        int weightPerItem = (64 + maxStackSize - 1) / maxStackSize;
-        int maxThatFits = remainingWeight / weightPerItem;
+        boolean isBundleItem = itemFactory.isOurBundle(item) || itemFactory.isOriginalBundle(item);
 
-        if (maxThatFits <= 0) {
-            return item.clone();
+        ItemStack toAdd;
+        int amountToAdd;
+
+        if (isBundleItem) {
+            int bundleWeight = getEffectiveWeight(item);
+            if (bundleWeight > remainingWeight) {
+                return item.clone();
+            }
+            // Add whole bundle (goes through normal slot → Slots → new Slot flow)
+            toAdd = item.clone();
+            amountToAdd = 1;
+        } else {
+            // Normal items - original partial logic
+            int maxStackSize = item.getMaxStackSize();
+            int weightPerItem = (64 + maxStackSize - 1) / maxStackSize;
+            int maxThatFits = remainingWeight / weightPerItem;
+
+            if (maxThatFits <= 0) {
+                return item.clone();
+            }
+
+            amountToAdd = Math.min(item.getAmount(), maxThatFits);
+            if (amountToAdd <= 0) {
+                return item.clone();
+            }
+
+            toAdd = item.clone();
+            toAdd.setAmount(amountToAdd);
         }
-
-        int amountToAdd = Math.min(item.getAmount(), maxThatFits);
-        if (amountToAdd <= 0) {
-            return item.clone();
-        }
-
-        // Create a limited copy with only what we can accept
-        ItemStack toAdd = item.clone();
-        toAdd.setAmount(amountToAdd);
 
         // 1. Try normal inventory slots first
         HashMap<Integer, ItemStack> map = handle.addItem(toAdd);
@@ -202,18 +219,78 @@ public class BundleInventory {
     }
 
     /**
+     * Calculates the **effective weight** of a single ItemStack.
+     * <p>
+     * Special handling:
+     * - Our custom Bundle or vanilla Bundle → 4 if empty (like tools), otherwise weight of contents
+     * - Our BundleSlot → weight of its contents (empty = 4)
+     * - Normal items → standard formula
+     */
+    private int getEffectiveWeight(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return 0;
+
+        // Our custom Bundle
+        if (itemFactory.isOurBundle(item)) {
+            try {
+                BundleItem bundleItem = new BundleItem(item);
+                BundleInventory inner = bundleItem.getInventory();
+                if (inner == null || inner.isEmpty()) return 4;
+                return inner.getWeight();
+            } catch (Exception e) {
+                return 4;
+            }
+        }
+
+        // Vanilla original bundles (BUNDLE + colored variants)
+        if (itemFactory.isOriginalBundle(item)) {
+            if (!item.hasItemMeta()) {
+                return 4; // no meta → empty
+            }
+            ItemMeta meta = item.getItemMeta();
+            if (meta instanceof BundleMeta bundleMeta) {
+                List<ItemStack> contents = bundleMeta.getItems();
+                if (contents == null || contents.isEmpty()) {
+                    return 4; // empty = 4 weight
+                }
+                int w = 0;
+                for (ItemStack inner : contents) {
+                    w += getEffectiveWeight(inner);
+                }
+                return w;
+            } else {
+                return 4; // has meta but wrong type → treat as empty
+            }
+        }
+
+        // Our BundleSlot
+        if (itemFactory.isOurBundleSlot(item)) {
+            try {
+                BundleSlotInventory slotInv = new BundleSlotInventory(item);
+                if (slotInv.isEmpty()) return 4;
+                int w = 0;
+                for (ItemStack inner : slotInv.getContents()) w += getEffectiveWeight(inner);
+                return w;
+            } catch (Exception e) {
+                return 4;
+            }
+        }
+
+        // Normal item
+        int amount = item.getAmount();
+        int maxStack = item.getMaxStackSize();
+        return (amount * 64 + maxStack - 1) / maxStack;
+    }
+
+    /**
      * Calculates the total weight of everything inside this bundle,
      * including items stored inside any Slots.
+     * Now uses getEffectiveWeight() for correct nested bundle + Slot handling.
      */
     public int getWeight() {
         int weight = 0;
-
         for (ItemStack item : getContents()) {
-            int amount = item.getAmount();
-            int maxStack = item.getMaxStackSize();
-            weight += (amount * 64 + maxStack - 1) / maxStack;
+            weight += getEffectiveWeight(item);
         }
-
         return weight;
     }
     
@@ -273,16 +350,27 @@ public class BundleInventory {
             return false;
         }
 
-        Material type = item.getType();
-
         if (getWeight() >= MAX_WEIGHT) {
             return false;
         }
 
+        // Check if we can fit at least ONE of this item by weight.
+        // This allows partial insertion when clicking a large stack on a bundle
+        // that still has some space left.
+        ItemStack single = item.clone();
+        single.setAmount(1);
+        int weightOfOne = getEffectiveWeight(single);
+
+        if (getWeight() + weightOfOne > MAX_WEIGHT) {
+            return false;
+        }
+
+        Material type = item.getType();
+
         for (ItemStack existing : getContents()) {
             if (existing.getType() == type) {
                 if (existing.getAmount() < existing.getMaxStackSize()) {
-                    return true; // We can stack more into this existing stack
+                    return true;
                 }
             }
         }

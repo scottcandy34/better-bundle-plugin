@@ -32,11 +32,7 @@ public class ItemFactory {
      */
     public boolean isBlockedItem(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return false;
-        if (isOurBundleSlot(item)) return false;
-        Material type = item.getType();
-        return type.name().contains("SHULKER") || type == Material.CHEST ||
-               type == Material.ENDER_CHEST || type == Material.BUNDLE ||
-               type.name().contains("BARREL");
+        return item.getType().name().contains("SHULKER");
     }
     
     public ItemStack createBundleSlotItem(int amount) {

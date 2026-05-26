@@ -1,7 +1,5 @@
 package com.scottcandy34.betterbundle;
 
-import java.util.UUID;
-
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -162,6 +160,14 @@ public class BundleListener implements Listener {
             return;
         }
 
+        // SHIFT_RIGHT on vanilla original Bundle (empty all contents into inventory)
+        if (clickConditions.isShiftRightClickToEmptyVanillaBundle(event)) {
+            event.setCancelled(true);
+            Inventory targetInv = getTargetInventory(event);
+            bundleActions.handleEmptyVanillaBundle(player, cursor, targetInv);
+            return;
+        }
+
         // LEFT CLICK on Bundle (insert item)
         if (clickConditions.isLeftClickToInsert(event)) {
             event.setCancelled(true);
@@ -181,17 +187,6 @@ public class BundleListener implements Listener {
                 bundleActions.handleRemoveItem(player, current);
             }
             return;
-        }
-    }
-
-    private boolean hasMatchingBundleUuid(ItemStack item, UUID targetId) {
-        if (item == null || !itemFactory.isOurBundle(item)) return false;
-
-        try {
-            BundleItem bundle = new BundleItem(item);
-            return targetId.equals(bundle.getBundleId());
-        } catch (IllegalArgumentException e) {
-            return false;
         }
     }
 
