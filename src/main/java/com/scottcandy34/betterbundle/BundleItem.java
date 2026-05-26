@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -116,6 +117,36 @@ public class BundleItem {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(name, NamedTextColor.GOLD)
             .decoration(TextDecoration.ITALIC, false));
+        item.setItemMeta(meta);
+    }
+
+    /**
+     * Applies a dye color to this Bundle.
+     * Changes both the model (for resource pack support) and display name.
+     */
+    public void applyDyeColor(Material dye) {
+        if (dye == null || !dye.name().endsWith("_DYE")) return;
+
+        String colorName = dye.name().replace("_DYE", "").toLowerCase();
+        String prettyColor = colorName.substring(0, 1).toUpperCase() + colorName.substring(1);
+
+        // Set color-specific model (e.g. bundle_red, bundle_blue)
+        NamespacedKey colorModel = NamespacedKey.minecraft(colorName + "_bundle");
+        setModel(colorModel);
+
+        // Set display name like "Red Copper Bundle"
+        setDisplayName(prettyColor + " Copper Bundle");
+    }
+
+    /**
+     * Changes the item model (texture) of this Bundle.
+     * Useful for dyeing or other visual variants in the future.
+     */
+    public void setModel(NamespacedKey model) {
+        if (!item.hasItemMeta()) return;
+
+        ItemMeta meta = item.getItemMeta();
+        meta.setItemModel(model);
         item.setItemMeta(meta);
     }
 

@@ -2,11 +2,14 @@ package com.scottcandy34.betterbundle;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import net.kyori.adventure.text.Component;
@@ -22,6 +25,7 @@ public class BetterBundlePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(listener, this);
 
         registerBundleRecipe();
+        registerDyeRecipes();
 
         getCommand("betterbundle").setExecutor(this);
 
@@ -133,6 +137,31 @@ public class BetterBundlePlugin extends JavaPlugin {
         }
         return true;
     }
+
+    private void registerDyeRecipes() {
+        Material[] dyes = {
+            Material.WHITE_DYE, Material.ORANGE_DYE, Material.MAGENTA_DYE, Material.LIGHT_BLUE_DYE,
+            Material.YELLOW_DYE, Material.LIME_DYE, Material.PINK_DYE, Material.GRAY_DYE,
+            Material.LIGHT_GRAY_DYE, Material.CYAN_DYE, Material.PURPLE_DYE, Material.BLUE_DYE,
+            Material.BROWN_DYE, Material.GREEN_DYE, Material.RED_DYE, Material.BLACK_DYE
+        };
+
+        ItemStack template = itemFactory.createCopperBundleItem(1);
+
+        int count = 0;
+        for (Material dye : dyes) {
+            NamespacedKey key = new NamespacedKey(this, "bundle_dye_" + dye.name().toLowerCase());
+
+            ShapelessRecipe dyeRecipe = new ShapelessRecipe(key, template.clone());
+            dyeRecipe.addIngredient(dye);
+            dyeRecipe.addIngredient(new RecipeChoice.ExactChoice(template));
+
+            Bukkit.addRecipe(dyeRecipe);
+            count++;
+        }
+
+        getLogger().info("Registered " + count + " bundle dyeing recipes.");
+}
 
     @Override
     public void onDisable() {

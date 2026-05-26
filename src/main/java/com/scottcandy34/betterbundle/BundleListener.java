@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -206,46 +207,71 @@ public class BundleListener implements Listener {
     @EventHandler
     public void onPrepareCraft(PrepareItemCraftEvent event) {
         ItemStack result = event.getInventory().getResult();
-        if (result == null || !itemFactory.isOurBundle(result)) return;
 
-        // Try to preserve contents from input bundles (especially the center one in the copper recipe)
+        // === Existing logic: Preserve contents when crafting Copper Bundle ===
+        if (result != null && itemFactory.isOurBundle(result)) {
+            ItemStack[] matrix = event.getInventory().getMatrix();
+            List<ItemStack> contentsToTransfer = new ArrayList<>();
+
+            for (ItemStack ingredient : matrix) {
+                if (ingredient == null || ingredient.getType() == Material.AIR) continue;
+
+                if (itemFactory.isOurBundle(ingredient)) {
+                    try {
+                        BundleItem inputBundle = new BundleItem(ingredient);
+                        BundleInventory inputInv = inputBundle.getInventory();
+                        if (inputInv != null) {
+                            contentsToTransfer.addAll(inputInv.getContents());
+                        }
+                    } catch (IllegalArgumentException ignored) {}
+                } else if (itemFactory.isOriginalBundle(ingredient) && ingredient.hasItemMeta()) {
+                    if (ingredient.getItemMeta() instanceof BundleMeta bundleMeta) {
+                        contentsToTransfer.addAll(bundleMeta.getItems());
+                    }
+                }
+            }
+
+            ItemStack newBundle = itemFactory.createCopperBundleItem(result.getAmount());
+
+            if (!contentsToTransfer.isEmpty()) {
+                try {
+                    BundleItem newBundleItem = new BundleItem(newBundle);
+                    BundleInventory newInv = newBundleItem.getInventory();
+                    if (newInv != null) {
+                        newInv.addItems(contentsToTransfer);
+                        newBundleItem.update();
+                        newBundle = newBundleItem.getBundle();
+                    }
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            event.getInventory().setResult(newBundle);
+            return;
+        }
+
+        // === New logic: Dyeing custom bundles ===
         ItemStack[] matrix = event.getInventory().getMatrix();
-        List<ItemStack> contentsToTransfer = new ArrayList<>();
+        ItemStack bundle = null;
+        Material dye = null;
 
         for (ItemStack ingredient : matrix) {
             if (ingredient == null || ingredient.getType() == Material.AIR) continue;
 
             if (itemFactory.isOurBundle(ingredient)) {
-                try {
-                    BundleItem inputBundle = new BundleItem(ingredient);
-                    BundleInventory inputInv = inputBundle.getInventory();
-                    if (inputInv != null) {
-                        contentsToTransfer.addAll(inputInv.getContents());
-                    }
-                } catch (IllegalArgumentException ignored) {}
-            } else if (itemFactory.isOriginalBundle(ingredient) && ingredient.hasItemMeta()) {
-                if (ingredient.getItemMeta() instanceof BundleMeta bundleMeta) {
-                    contentsToTransfer.addAll(bundleMeta.getItems());
-                }
+                bundle = ingredient;
+            } else if (ingredient.getType().name().endsWith("_DYE")) {
+                dye = ingredient.getType();
             }
         }
 
-        // Create the new bundle (Copper Bundle)
-        ItemStack newBundle = itemFactory.createCopperBundleItem(result.getAmount());
-
-        // Transfer contents into the new bundle if any were found
-        if (!contentsToTransfer.isEmpty()) {
+        if (bundle != null && dye != null) {
             try {
-                BundleItem newBundleItem = new BundleItem(newBundle);
-                BundleInventory newInv = newBundleItem.getInventory();
-                if (newInv != null) {
-                    newInv.addItems(contentsToTransfer);
-                    newBundleItem.update();
-                    newBundle = newBundleItem.getBundle();
-                }
+                BundleItem dyedBundle = new BundleItem(bundle.clone());
+                dyedBundle.applyDyeColor(dye);
+                dyedBundle.update();
+
+                event.getInventory().setResult(dyedBundle.getBundle());
             } catch (IllegalArgumentException ignored) {}
         }
-
-        event.getInventory().setResult(newBundle);
     }
 }
