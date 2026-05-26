@@ -3,11 +3,9 @@ package com.scottcandy34.betterbundle;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -30,13 +28,6 @@ public class BundleListener implements Listener {
     }
 
     @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
-        if (itemFactory.isOurBundle(event.getItemInHand())) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
@@ -45,12 +36,6 @@ public class BundleListener implements Listener {
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
         if (!itemFactory.isOurBundle(mainHand)) return;
-
-        event.setUseItemInHand(Result.DENY);
-        if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-            event.setUseInteractedBlock(Result.DENY);
-        }
-        event.setCancelled(true);
 
         // Shift + Right Click while holding Bundle → Open GUI
         if (player.isSneaking()) {

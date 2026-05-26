@@ -138,7 +138,7 @@ public class BundleItem {
         bsm.setBlockState(shulker);
         innerShulker.setItemMeta(bsm);
 
-        // Persist the updated inner Shulker back into the PLAYER_HEAD
+        // Persist the updated inner Shulker back into the POISONOUS_POTATO
         setInnerShulker();
     }
 
@@ -319,7 +319,7 @@ public class BundleItem {
     }
 
     /**
-     * Returns the actual Bundle item (the PLAYER_HEAD) that this wrapper represents.
+     * Returns the actual Bundle item (the POISONOUS_POTATO) that this wrapper represents.
      * This is the ItemStack the player holds in their inventory.
      */
     public ItemStack getBundle() {

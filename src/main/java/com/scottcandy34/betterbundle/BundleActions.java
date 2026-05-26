@@ -308,10 +308,12 @@ public class BundleActions {
 
             if (removed != null) {
                 // Drop exactly like the player pressed Q (vanilla behavior)
-                Item dropped = player.getWorld().dropItemNaturally(
-                    player.getEyeLocation().add(player.getLocation().getDirection().multiply(0.3)), removed);
+                Item dropped = player.getWorld().dropItemNaturally(player.getEyeLocation().add(player.getLocation().getDirection().multiply(0.3)), removed);
+                
                 dropped.setVelocity(player.getLocation().getDirection().multiply(0.3));
 
+                dropped.setPickupDelay(40);
+                
                 BundleSound.DROP_CONTENTS.play(player);
             }
 

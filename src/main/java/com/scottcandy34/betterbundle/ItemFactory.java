@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.ShulkerBox;
@@ -12,13 +11,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import com.destroystokyo.paper.profile.PlayerProfile;
-import com.destroystokyo.paper.profile.ProfileProperty;
-
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -66,23 +62,20 @@ public class ItemFactory {
     }
 
     public ItemStack createBundleItem(int amount) {
-        ItemStack head = new ItemStack(Material.PLAYER_HEAD, amount);
+        ItemStack head = new ItemStack(Material.POISONOUS_POTATO, amount);
         ItemMeta meta = head.getItemMeta();
 
         if (meta != null) {
-            // Apply custom player head texture (modern Paper way)
-            if (meta instanceof SkullMeta skullMeta) {
-                PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
-                profile.setProperty(new ProfileProperty("textures", Constants.BUNDLE_HEAD_TEXTURE));
-                skullMeta.setPlayerProfile(profile);
-            }
-
             // Use original vanilla Bundle model (so it looks like a classic bundle in inventory/hotbar)
             meta.setItemModel(NamespacedKey.minecraft("bundle"));
 
             meta.displayName(Component.text("Bundle", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
             meta.setMaxStackSize(1);
+
+            meta.setFood(null);
+
+            meta.setEnchantmentGlintOverride(true);
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(Constants.BUNDLE_KEY, PersistentDataType.BYTE, (byte) 1);
@@ -120,12 +113,13 @@ public class ItemFactory {
             }
 
             head.setItemMeta(meta);
+            head.unsetData(DataComponentTypes.CONSUMABLE);
         }
         return head;
     }
 
     public boolean isOurBundle(ItemStack item) {
-        if (item == null || item.getType() != Material.PLAYER_HEAD || !item.hasItemMeta()) return false;
+        if (item == null || item.getType() != Material.POISONOUS_POTATO || !item.hasItemMeta()) return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         return pdc.has(Constants.BUNDLE_KEY, PersistentDataType.BYTE);
     }

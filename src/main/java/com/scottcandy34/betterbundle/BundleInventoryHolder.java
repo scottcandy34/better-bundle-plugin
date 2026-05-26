@@ -2,7 +2,6 @@ package com.scottcandy34.betterbundle;
 
 import java.util.UUID;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -99,13 +98,11 @@ public class BundleInventoryHolder implements InventoryHolder {
 
         // Also update cursor if it contains this Bundle
         ItemStack cursor = player.getItemOnCursor();
-        if (cursor != null && cursor.getType() == Material.PLAYER_HEAD) {
-            try {
-                BundleItem cursorBundle = new BundleItem(cursor);
-                if (targetId.equals(cursorBundle.getBundleId())) {
-                    player.setItemOnCursor(updated.clone());
-                }
-            } catch (IllegalArgumentException ignored) {}
-        }
+        try {
+            BundleItem cursorBundle = new BundleItem(cursor);
+            if (targetId.equals(cursorBundle.getBundleId())) {
+                player.setItemOnCursor(updated.clone());
+            }
+        } catch (IllegalArgumentException ignored) {}
     }
 }
