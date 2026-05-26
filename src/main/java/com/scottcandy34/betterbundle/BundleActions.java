@@ -303,6 +303,8 @@ public class BundleActions {
             if (bundleInv == null) return;
 
             ItemStack removed = bundleInv.removeItem();
+            
+            player.swingMainHand();
 
             if (removed != null) {
                 // Drop exactly like the player pressed Q (vanilla behavior)
