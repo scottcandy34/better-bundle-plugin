@@ -1,6 +1,10 @@
 package com.scottcandy34.betterbundle;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,6 +19,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BundleMeta;
 
 public class BundleListener implements Listener {
 
@@ -203,8 +208,44 @@ public class BundleListener implements Listener {
         ItemStack result = event.getInventory().getResult();
         if (result == null || !itemFactory.isOurBundle(result)) return;
 
-        // Replace with a fresh Bundle that has its own UUID
-        ItemStack fresh = itemFactory.createCopperBundleItem(result.getAmount());
-        event.getInventory().setResult(fresh);
+        // Try to preserve contents from input bundles (especially the center one in the copper recipe)
+        ItemStack[] matrix = event.getInventory().getMatrix();
+        List<ItemStack> contentsToTransfer = new ArrayList<>();
+
+        for (ItemStack ingredient : matrix) {
+            if (ingredient == null || ingredient.getType() == Material.AIR) continue;
+
+            if (itemFactory.isOurBundle(ingredient)) {
+                try {
+                    BundleItem inputBundle = new BundleItem(ingredient);
+                    BundleInventory inputInv = inputBundle.getInventory();
+                    if (inputInv != null) {
+                        contentsToTransfer.addAll(inputInv.getContents());
+                    }
+                } catch (IllegalArgumentException ignored) {}
+            } else if (itemFactory.isOriginalBundle(ingredient) && ingredient.hasItemMeta()) {
+                if (ingredient.getItemMeta() instanceof BundleMeta bundleMeta) {
+                    contentsToTransfer.addAll(bundleMeta.getItems());
+                }
+            }
+        }
+
+        // Create the new bundle (Copper Bundle)
+        ItemStack newBundle = itemFactory.createCopperBundleItem(result.getAmount());
+
+        // Transfer contents into the new bundle if any were found
+        if (!contentsToTransfer.isEmpty()) {
+            try {
+                BundleItem newBundleItem = new BundleItem(newBundle);
+                BundleInventory newInv = newBundleItem.getInventory();
+                if (newInv != null) {
+                    newInv.addItems(contentsToTransfer);
+                    newBundleItem.update();
+                    newBundle = newBundleItem.getBundle();
+                }
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        event.getInventory().setResult(newBundle);
     }
 }
