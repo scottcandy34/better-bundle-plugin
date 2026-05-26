@@ -92,6 +92,8 @@ public class BundleInventory {
             toAdd.setAmount(amountToAdd);
         }
 
+        moveLastPartialStackToEnd(toAdd);
+
         // 1. Try normal inventory slots first
         HashMap<Integer, ItemStack> map = handle.addItem(toAdd);
         ItemStack remaining = map.isEmpty() ? null : map.values().iterator().next();
@@ -216,6 +218,44 @@ public class BundleInventory {
         repack(allItems);
 
         return removed;
+    }
+
+    /**
+     * Moves the LAST partial stack of the same type as the given item to the very end
+     * of the bundle's inventory.
+     *
+     * This ensures that when adding items, they (or their combined stack) tend to
+     * appear toward the end, which works well with LIFO removal.
+     *
+     * The method is self-contained: it calls prepareForRepack internally and repack at the end.
+     * Only the item needs to be passed in.
+     */
+    private void moveLastPartialStackToEnd(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) {
+            return;
+        }
+
+        List<ItemStack> items = prepareForRepack(0);
+        if (items.isEmpty()) {
+            repack(items);
+            return;
+        }
+
+        Material type = item.getType();
+        int maxStackSize = item.getMaxStackSize();
+
+        // Search from the end backwards for the last stack of this type that has room
+        for (int i = items.size() - 1; i >= 0; i--) {
+            ItemStack existing = items.get(i);
+            if (existing.getType() == type && existing.getAmount() < maxStackSize) {
+                // Found a partial stack with space - move it to the end
+                ItemStack stackToMove = items.remove(i);
+                items.add(stackToMove); // add back at the end
+                break;
+            }
+        }
+
+        repack(items);
     }
 
     /**
