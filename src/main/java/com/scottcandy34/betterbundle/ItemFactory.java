@@ -61,7 +61,7 @@ public class ItemFactory {
         return pdc.has(Constants.SLOT_KEY, PersistentDataType.BYTE);
     }
 
-    public ItemStack createBundleItem(int amount) {
+    private BundleItem createBundleItem(int amount) {
         ItemStack head = new ItemStack(Material.POISONOUS_POTATO, amount);
         ItemMeta meta = head.getItemMeta();
 
@@ -115,7 +115,26 @@ public class ItemFactory {
             head.setItemMeta(meta);
             head.unsetData(DataComponentTypes.CONSUMABLE);
         }
-        return head;
+        return new BundleItem(head);
+    }
+
+    /**
+     * Creates a Copper Bundle with double the capacity of a normal bundle.
+     * This is the method called by the copper-reinforced crafting recipe.
+     */
+    public ItemStack createCopperBundleItem(int amount) {
+        BundleItem bundleItem = createBundleItem(amount);
+
+        // Set double capacity
+        bundleItem.setMaxWeight(Constants.DEFAULT_MAX_WEIGHT * 2);
+
+        // Change display name to Copper Bundle
+        bundleItem.setDisplayName("Copper Bundle");
+
+        // Refresh lore and other dynamic elements
+        bundleItem.update();
+
+        return bundleItem.getBundle();
     }
 
     public boolean isOurBundle(ItemStack item) {

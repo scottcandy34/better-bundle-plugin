@@ -204,7 +204,7 @@ public class BundleListener implements Listener {
         if (result == null || !itemFactory.isOurBundle(result)) return;
 
         // Replace with a fresh Bundle that has its own UUID
-        ItemStack fresh = itemFactory.createBundleItem(result.getAmount());
+        ItemStack fresh = itemFactory.createCopperBundleItem(result.getAmount());
         event.getInventory().setResult(fresh);
     }
 }

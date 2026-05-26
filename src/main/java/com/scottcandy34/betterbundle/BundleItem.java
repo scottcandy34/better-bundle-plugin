@@ -108,6 +108,18 @@ public class BundleItem {
     }
 
     /**
+     * Changes the display name of this Bundle.
+     */
+    public void setDisplayName(String name) {
+        if (!item.hasItemMeta()) return;
+
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(name, NamedTextColor.GOLD)
+            .decoration(TextDecoration.ITALIC, false));
+        item.setItemMeta(meta);
+    }
+
+    /**
      * Saves the contents of a BundleInventory back into this Bundle.
      *
      * This writes the live inventory state into the inner ShulkerBox,

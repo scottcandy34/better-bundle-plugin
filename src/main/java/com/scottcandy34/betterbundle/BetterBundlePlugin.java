@@ -45,7 +45,7 @@ public class BetterBundlePlugin extends JavaPlugin {
             }
 
             // Create a fresh bundle
-            ItemStack bundle = itemFactory.createBundleItem(1);
+            ItemStack bundle = itemFactory.createCopperBundleItem(1);
             BundleItem bundleItem = new BundleItem(bundle);
             BundleInventory bundleInv = bundleItem.getInventory();
 
@@ -116,7 +116,7 @@ public class BetterBundlePlugin extends JavaPlugin {
         ItemStack item;
         String itemName;
         if (type.equals("bundle")) {
-            item = itemFactory.createBundleItem(amount);
+            item = itemFactory.createCopperBundleItem(amount);
             itemName = "Bundle";
         } else if (type.equals("slot")) {
             item = itemFactory.createBundleSlotItem(amount);
@@ -140,14 +140,14 @@ public class BetterBundlePlugin extends JavaPlugin {
     }
 
     private void registerBundleRecipe() {
-        ItemStack bundle = itemFactory.createBundleItem(1);
+        ItemStack bundle = itemFactory.createCopperBundleItem(1);
 
         ShapedRecipe recipe = new ShapedRecipe(Constants.RECIPE_KEY, bundle);
-        recipe.shape(" S ", "HHH", " H ");
-        recipe.setIngredient('S', org.bukkit.Material.STRING);
-        recipe.setIngredient('H', org.bukkit.Material.RABBIT_HIDE);
+        recipe.shape("CCC", "CBC", "CCC");
+        recipe.setIngredient('C', Material.COPPER_INGOT);
+        recipe.setIngredient('B', Material.BUNDLE);
 
         Bukkit.addRecipe(recipe);
-        getLogger().info("Registered custom Bundle crafting recipe.");
+        getLogger().info("Registered custom Bundle crafting recipe (Copper Ingots surrounding a normal Bundle).");
     }
 }
